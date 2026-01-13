@@ -1,2 +1,2 @@
-# CPSC4911Project
+# CPSC 4911 Capstone Project
 Capstone Project Repository 
