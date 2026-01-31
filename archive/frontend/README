@@ -1,0 +1,25 @@
+For the FrontEnd Team:
+
+Sorry for not explaining how to work with tailwind. There has been a lot on my plate lately and its
+been hard to manage all of my other projects along with this one. I completed the setup for tailwind so all 
+you'll need to do when developing this part of the project is the following
+
+
+1. When developing css, you'll need to have a second terminal running this comand in the server's "Frontend" directory:  
+      -->    npx @tailwindcss/cli -i styles.css -o output.css --watch 
+
+
+
+
+
+
+2. Begin coding. You should be able to see changes when you visit http://<server_public_ip>
+
+
+
+
+Hope this helped and sorry for not explaining. Let me know if you run into any issues
+
+Your friend,
+Joseph
+
