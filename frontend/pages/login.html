@@ -13,35 +13,243 @@
             <p class="text-slate-500 mt-2">Please enter your details</p>
         </div>
 
-        <form class="space-y-5">
+        <form id="loginForm" class="space-y-5" novalidate>
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-1">Email</label>
-                <input type="email" placeholder="name@company.com" 
+                <input id="email" name="email" type="email" autocomplete="email" placeholder="name@company.com" 
                        class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50">
+                <p id="emailError" class="hidden text-xs text-red-600 mt-2">Please enter a valid email.</p>
             </div>
 
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-1">Password</label>
-                <input type="password" placeholder="••••••••" 
+                <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" 
                        class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50">
+                <p id="passwordError" class="hidden text-xs text-red-600 mt-2">Please enter your password.</p>
             </div>
 
             <div class="flex items-center justify-between text-sm">
                 <label class="flex items-center text-slate-600">
                     <input type="checkbox" class="mr-2 rounded border-slate-300"> Remember me
                 </label>
-                <a href="#" class="text-blue-600 hover:underline">Forgot password?</a>
+                <a href="forgot_password.html" class="text-blue-600 hover:underline">Forgot password?</a>
             </div>
 
-            <button class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition-all active:scale-[0.98]">
-                Sign In
+            <button id="loginBtn" type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition-all active:scale-[0.98]">
+                <span id="loginBtnText">Sign In</span>
             </button>
+
+
+            <p id="attemptCounter" class="text-sm text-slate-600 text-center mt-2">
+                Login attempts: <span id="attemptCount">0</span> / <span id="attemptMax">5</span>
+            </p>
+            <p id="lockoutMsg" class="hidden text-sm text-red-600 text-center">
+                Too many attempts. Please wait <span id="lockoutSeconds">60</span> seconds.
+            </p>
+
+            <p id="loginStatus" class="hidden text-sm text-slate-600 text-center"></p>
         </form>
 
         <p class="text-center text-sm text-slate-600 mt-8">
-            Don't have an account? <a href="#" class="text-blue-600 font-bold hover:underline">Sign up</a>
+            Don't have an account? <a href="signup.html" class="text-blue-600 font-bold hover:underline">Sign up</a>
         </p>
     </div>
+
+    <script>
+        // Lightweight client-side behavior so the UI "works" even before the API is finished.
+        // If/when you add an auth API, update LOGIN_ENDPOINT below.
+        const LOGIN_ENDPOINT = "/auth/login"; // placeholder
+
+        // ===== Login Attempt Counter (UI-only) =====
+        const MAX_ATTEMPTS = 5;
+        const LOCKOUT_SECONDS = 60;
+        const ATTEMPTS_KEY = "login_attempts";
+        const LOCKOUT_UNTIL_KEY = "login_lockout_until";
+
+        const form = document.getElementById("loginForm");
+        const email = document.getElementById("email");
+        const password = document.getElementById("password");
+        const emailError = document.getElementById("emailError");
+        const passwordError = document.getElementById("passwordError");
+        const statusEl = document.getElementById("loginStatus");
+        const btn = document.getElementById("loginBtn");
+        const btnText = document.getElementById("loginBtnText");
+
+        const attemptCountEl = document.getElementById("attemptCount");
+        const attemptMaxEl = document.getElementById("attemptMax");
+        const lockoutMsgEl = document.getElementById("lockoutMsg");
+        const lockoutSecondsEl = document.getElementById("lockoutSeconds");
+
+        attemptMaxEl.textContent = String(MAX_ATTEMPTS);
+
+        function getAttempts() {
+            return parseInt(localStorage.getItem(ATTEMPTS_KEY) || "0", 10);
+        }
+
+        function setAttempts(n) {
+            localStorage.setItem(ATTEMPTS_KEY, String(n));
+            renderAttempts();
+        }
+
+        function resetAttempts() {
+            localStorage.removeItem(ATTEMPTS_KEY);
+            localStorage.removeItem(LOCKOUT_UNTIL_KEY);
+            renderAttempts();
+            setLockoutUI(false);
+        }
+
+        function getLockoutUntil() {
+            return parseInt(localStorage.getItem(LOCKOUT_UNTIL_KEY) || "0", 10);
+        }
+
+        function setLockoutUntil(tsMs) {
+            localStorage.setItem(LOCKOUT_UNTIL_KEY, String(tsMs));
+        }
+
+        function renderAttempts() {
+            attemptCountEl.textContent = String(getAttempts());
+        }
+
+        function setStatus(message, isError=false) {
+            statusEl.textContent = message;
+            statusEl.classList.remove("hidden", "text-slate-600", "text-red-600");
+            statusEl.classList.add(isError ? "text-red-600" : "text-slate-600");
+        }
+
+        function validate() {
+            const emailOk = email.value.trim() && /.+@.+\..+/.test(email.value);
+            const pwOk = password.value.trim().length > 0;
+
+            emailError.classList.toggle("hidden", emailOk);
+            passwordError.classList.toggle("hidden", pwOk);
+
+            return emailOk && pwOk;
+        }
+
+        function setLockoutUI(locked, secondsLeft = 0) {
+        if (locked) {
+                btn.disabled = true;
+                lockoutMsgEl.classList.remove("hidden");
+                lockoutSecondsEl.textContent = String(secondsLeft);
+            } else {
+                btn.disabled = false;
+                lockoutMsgEl.classList.add("hidden");
+            }
+        }
+
+
+        function startLockoutTimer() {
+            const tick = () => {
+                const now = Date.now();
+                const until = getLockoutUntil();
+
+                if (!until || now >= until) {
+                    setLockoutUI(false);
+                    return;
+                }
+
+                const secondsLeft = Math.ceil((until - now) / 1000);
+                setLockoutUI(true, secondsLeft);
+                requestAnimationFrame(() => setTimeout(tick, 250));
+            };
+            tick();
+        }
+
+        function checkLockoutOnLoad() {
+        renderAttempts();
+        const now = Date.now();
+        const until = getLockoutUntil();
+
+            // If attempts are 0, but lockout exists, clear it (prevents this mismatch)
+            if (getAttempts() === 0 && until && now < until) {
+                localStorage.removeItem("login_lockout_until");
+                setLockoutUI(false);
+                return;
+            }
+
+            if (until && now < until) {
+                setLockoutUI(true, Math.ceil((until - now) / 1000));
+                startLockoutTimer();
+            } else {
+                setLockoutUI(false);
+            }
+        }
+
+
+        checkLockoutOnLoad();
+
+        function noteFailedAttempt() {
+            const attempts = getAttempts() + 1;
+            setAttempts(attempts);
+
+            if (attempts >= MAX_ATTEMPTS) {
+                const untilMs = Date.now() + LOCKOUT_SECONDS * 1000;
+                setLockoutUntil(untilMs);
+
+                // Show immediately (only now), then start countdown
+                setLockoutUI(true, LOCKOUT_SECONDS);
+                startLockoutTimer();
+            } else {
+                // Keep hidden for attempts 1–4
+                setLockoutUI(false);
+            }
+        }
+
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            statusEl.classList.add("hidden");
+
+            // If currently locked out, ignore submits
+            const until = getLockoutUntil();
+            if (until && Date.now() < until) return;
+
+            if (!validate()) return;
+
+            // UX: show loading state
+            btn.disabled = true;
+            btn.classList.add("opacity-80", "cursor-not-allowed");
+            btnText.textContent = "Signing in…";
+
+            try {
+                // Try a real API call if you have one. If it fails (common during early sprints), we still keep the UI usable.
+                const res = await fetch(LOGIN_ENDPOINT, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: email.value.trim(), password: password.value })
+                });
+
+                if (res.ok) {
+                    // SUCCESS: reset attempts and redirect
+                    resetAttempts();
+                    setStatus("Signed in! Redirecting…");
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                // If the endpoint exists but login failed, count the attempt.
+                noteFailedAttempt();
+                setStatus("Login failed. Double-check your email/password.", true);
+            } catch (err) {
+                // No backend yet — keep the UI testable:
+                // Treat as a demo login so your flow works during development.
+                resetAttempts();
+                setStatus("Backend not connected yet — demo login successful. Redirecting…");
+                setTimeout(() => window.location.href = "index.html", 700);
+            } finally {
+                // If lockout started, button will remain disabled by lockout UI.
+                if (!(getLockoutUntil() && Date.now() < getLockoutUntil())) {
+                    btn.disabled = false;
+                    btn.classList.remove("opacity-80", "cursor-not-allowed");
+                }
+                btnText.textContent = "Sign In";
+            }
+        });
+
+        // Validate on blur for nicer UX
+        email.addEventListener("blur", validate);
+        password.addEventListener("blur", validate);
+    </script>
 
 </body>
 </html>

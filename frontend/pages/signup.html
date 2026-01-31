@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../dist/output.css" rel="stylesheet">
+    <title>Sign Up</title>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+        <div class="text-center mb-8">
+            <h2 class="text-3xl font-bold text-slate-800">Create account</h2>
+            <p class="text-slate-500 mt-2">Sign up to get started</p>
+        </div>
+
+        <form id="signupForm" class="space-y-5" novalidate>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Full name</label>
+                <input id="fullName" name="fullName" type="text" autocomplete="name" placeholder="Jane Doe"
+                       class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50">
+                <p id="nameError" class="hidden text-xs text-red-600 mt-2">Please enter your name.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Email</label>
+                <input id="email" name="email" type="email" autocomplete="email" placeholder="name@company.com"
+                       class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50">
+                <p id="emailError" class="hidden text-xs text-red-600 mt-2">Please enter a valid email.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Password</label>
+                <input id="password" name="password" type="password" autocomplete="new-password" placeholder="••••••••"
+                       class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50">
+                <p id="passwordError" class="hidden text-xs text-red-600 mt-2">Password must be at least 8 characters.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Confirm password</label>
+                <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" placeholder="••••••••"
+                       class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50">
+                <p id="confirmError" class="hidden text-xs text-red-600 mt-2">Passwords do not match.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Account type</label>
+                <select id="role" name="role"
+                        class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50">
+                    <option value="driver">Driver</option>
+                    <option value="sponsor">Sponsor</option>
+                    <option value="admin">Admin</option>
+                </select>
+                <p class="text-xs text-slate-500 mt-2">This is for UI testing—your backend can enforce real roles later.</p>
+            </div>
+
+            <button id="signupBtn" type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl transition-all active:scale-[0.98]">
+                <span id="signupBtnText">Create Account</span>
+            </button>
+
+            <p id="signupStatus" class="hidden text-sm text-slate-600 text-center"></p>
+        </form>
+
+        <p class="text-center text-sm text-slate-600 mt-8">
+            Already have an account? <a href="login.html" class="text-blue-600 font-bold hover:underline">Sign in</a>
+        </p>
+    </div>
+
+    <script>
+        // UI-only signup behavior. Wire this to real API later.
+        const SIGNUP_ENDPOINT = "/auth/signup"; // placeholder
+
+        const form = document.getElementById("signupForm");
+        const fullName = document.getElementById("fullName");
+        const email = document.getElementById("email");
+        const password = document.getElementById("password");
+        const confirmPassword = document.getElementById("confirmPassword");
+        const role = document.getElementById("role");
+
+        const nameError = document.getElementById("nameError");
+        const emailError = document.getElementById("emailError");
+        const passwordError = document.getElementById("passwordError");
+        const confirmError = document.getElementById("confirmError");
+
+        const statusEl = document.getElementById("signupStatus");
+        const btn = document.getElementById("signupBtn");
+        const btnText = document.getElementById("signupBtnText");
+
+        function setStatus(message, isError=false) {
+            statusEl.textContent = message;
+            statusEl.classList.remove("hidden", "text-slate-600", "text-red-600");
+            statusEl.classList.add(isError ? "text-red-600" : "text-slate-600");
+        }
+
+        function validate() {
+            const nameOk = fullName.value.trim().length > 0;
+            const emailOk = email.value.trim() && /.+@.+\..+/.test(email.value);
+            const pwOk = password.value.trim().length >= 8;
+            const confirmOk = confirmPassword.value === password.value && confirmPassword.value.length > 0;
+
+            nameError.classList.toggle("hidden", nameOk);
+            emailError.classList.toggle("hidden", emailOk);
+            passwordError.classList.toggle("hidden", pwOk);
+            confirmError.classList.toggle("hidden", confirmOk);
+
+            return nameOk && emailOk && pwOk && confirmOk;
+        }
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            statusEl.classList.add("hidden");
+
+            if (!validate()) return;
+
+            btn.disabled = true;
+            btn.classList.add("opacity-80", "cursor-not-allowed");
+            btnText.textContent = "Creating…";
+
+            const payload = {
+                name: fullName.value.trim(),
+                email: email.value.trim(),
+                password: password.value,
+                role: role.value
+            };
+
+            try {
+                const res = await fetch(SIGNUP_ENDPOINT, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    setStatus("Account created! Redirecting to login…");
+                    setTimeout(() => window.location.href = "login.html", 800);
+                    return;
+                }
+
+                setStatus("Sign up failed. Try a different email.", true);
+            } catch (err) {
+                // No backend yet — keep UI flow testable
+                setStatus("Backend not connected yet — demo account created. Redirecting…");
+                setTimeout(() => window.location.href = "login.html", 800);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove("opacity-80", "cursor-not-allowed");
+                btnText.textContent = "Create Account";
+            }
+        });
+
+        fullName.addEventListener("blur", validate);
+        email.addEventListener("blur", validate);
+        password.addEventListener("blur", validate);
+        confirmPassword.addEventListener("blur", validate);
+    </script>
+</body>
+</html>
