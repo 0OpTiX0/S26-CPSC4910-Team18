@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="output.css">
+    <title>Manage Devices</title>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans">
+
+    <nav class="max-w-4xl mx-auto p-6 text-center">
+        <h1 class="text-lg font-bold text-slate-900">Security Settings</h1>
+    </nav>
+
+    <main class="max-w-2xl mx-auto px-4 py-8">
+
+        <div id="security-banner" class="hidden mb-8 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-4">
+            <div class="flex-shrink-0 w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            </div>
+            <div>
+                <p class="text-[10px] font-black uppercase text-emerald-700 tracking-widest">Account Protected</p>
+                <p class="text-sm text-slate-600">Last login: <span id="last-login-time" class="font-bold text-slate-900">Checking...</span></p>
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-slate-900">Your Logged-in Devices</h2>
+            <p class="text-slate-500 text-sm">Review sessions and logout of any device you don't recognize.</p>
+        </div>
+
+        <div id="device-container" class="space-y-4">
+            
+            <div class="bg-white p-5 rounded-2xl border-2 border-blue-100 flex items-center justify-between shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-slate-900 text-sm">iPhone 15 Pro</h3>
+                            <span class="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-black uppercase">Current</span>
+                        </div>
+                        <p class="text-xs text-slate-500">Central, SC • Online now</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="device-card bg-white p-5 rounded-2xl border border-slate-200 flex items-center justify-between group transition-all duration-300">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-slate-50 text-slate-400 group-hover:bg-red-50 group-hover:text-red-500 rounded-xl transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 21h6l-.75-4M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm">Chrome on Windows</h3>
+                        <p class="text-xs text-slate-500">Atlanta, GA • Active 2 hours ago</p>
+                    </div>
+                </div>
+                <button class="logout-single text-xs font-bold text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg transition">Logout</button>
+            </div>
+
+            <div class="device-card bg-white p-5 rounded-2xl border border-slate-200 flex items-center justify-between group transition-all duration-300">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-slate-50 text-slate-400 group-hover:bg-red-50 group-hover:text-red-500 rounded-xl transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-slate-900 text-sm">Samsung Galaxy S23</h3>
+                        <p class="text-xs text-slate-500">Miami, FL • Active Jan 28</p>
+                    </div>
+                </div>
+                <button class="logout-single text-xs font-bold text-red-500 hover:bg-red-50 px-4 py-2 rounded-lg transition">Logout</button>
+            </div>
+
+        </div>
+
+        <button id="logout-all" class="w-full mt-10 py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-500 font-bold hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all">
+            Logout of all other sessions
+        </button>
+    </main>
+
+    <script src="../js/device-management.js"></script>
+</body>
+</html>
