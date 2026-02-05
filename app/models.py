@@ -11,7 +11,7 @@ from sqlmodel import Field, Relationship, SQLModel
 class User(SQLModel, table=True):
     __tablename__ = "User"
     UserID : int | None = Field(default=None, primary_key=True, unique=True)
-    User_name : str
+    User_Name : str
     User_Role : str
     User_Email : str = Field(unique=True)
     User_Phone_Num : str = Field(unique=True)
