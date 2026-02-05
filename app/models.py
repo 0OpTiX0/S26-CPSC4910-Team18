@@ -26,6 +26,7 @@ class Market(SQLModel, table=True):
     Market_Description : str
 
 class Sponsor(SQLModel, table=True):
+    __tablename__ = "Sponsor"
     Sponsor_ID : int | None = Field(unique=True, primary_key=True, default=None)
     Sponsor_Name : str
     Market_ID : int = Field(foreign_key="Market.Market_ID")
@@ -34,15 +35,18 @@ class Sponsor(SQLModel, table=True):
     Sponsor_Phone_Num : str = Field(unique=True)
 
 class Driver_User(SQLModel, table = True):
+    __tablename__ = "Driver_User"
     UserID : int | None = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
     Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
     User_Points : int = Field(default=0)
 
 class Sponsor_User(SQLModel, table=True):
+    __tablename__ = "Sponsor_User"
     UserID : int | None = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
     Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
 
-class Driver_Application:
+class Driver_Application(SQLModel, table=True):
+    __tablename__="Driver_Application"
     ApplicationID = int | None = Field(unique=True, primary_key=True, default=None)
     Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
     UserID : int = Field(foreign_key="User.UserID")
