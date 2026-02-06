@@ -9,8 +9,8 @@ from typing import List, Optional
 from sqlmodel import Field, Relationship, SQLModel
 
 class User(SQLModel, table=True):
-    __tablename__ = "User"
-    UserID : int | None = Field(default=None, primary_key=True, unique=True)
+    __tablename__= "User"
+    UserID : Optional[int] = Field(default=None, primary_key=True, unique=True)
     User_Name : str
     User_Role : str
     User_Email : str = Field(unique=True)
@@ -21,13 +21,13 @@ class User(SQLModel, table=True):
 
 class Market(SQLModel, table=True):
     __tablename__ = "Market"
-    Market_ID : int | None = Field(unique=True, primary_key=True, default=None)
+    Market_ID : Optional[int] = Field(unique=True, primary_key=True, default=None)
     Market_Name : str
     Market_Description : str
 
 class Sponsor(SQLModel, table=True):
     __tablename__ = "Sponsor"
-    Sponsor_ID : int | None = Field(unique=True, primary_key=True, default=None)
+    Sponsor_ID : Optional[int] = Field(unique=True, primary_key=True, default=None)
     Sponsor_Name : str
     Market_ID : int = Field(foreign_key="Market.Market_ID")
     Sponsor_Description : str
@@ -36,18 +36,18 @@ class Sponsor(SQLModel, table=True):
 
 class Driver_User(SQLModel, table = True):
     __tablename__ = "Driver_User"
-    UserID : int | None = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
+    UserID : Optional[int] = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
     Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
     User_Points : int = Field(default=0)
 
 class Sponsor_User(SQLModel, table=True):
     __tablename__ = "Sponsor_User"
-    UserID : int | None = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
+    UserID : Optional[int] = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
     Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
 
 class Driver_Application(SQLModel, table=True):
-    __tablename__="Driver_Application"
-    ApplicationID = int | None = Field(unique=True, primary_key=True, default=None)
+    __tablename__ = "Driver_Application"
+    ApplicationID: Optional[int] = Field(unique=True, primary_key=True, default=None)
     Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
     UserID : int = Field(foreign_key="User.UserID")
     Applicant_Email : str
