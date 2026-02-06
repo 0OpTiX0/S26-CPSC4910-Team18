@@ -4,3 +4,4 @@ gunicorn
 sqlmodel
 sqlalchemy
 pymysql
+python-dotenv

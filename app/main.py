@@ -1,8 +1,11 @@
 from fastapi import FastAPI
+from db import engine, getSession
+from sqlalchemy import select
 
 app = FastAPI()
 
 @app.get("/health")
 def health():
-    print("hello world!")
     return {"ok": True}
+
+
