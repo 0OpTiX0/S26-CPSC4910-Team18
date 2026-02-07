@@ -55,6 +55,10 @@ class Driver_Application(SQLModel, table=True):
     Submitted_At : datetime
 
 
+# Payload classes for API Endpoints. They allow for information exchagne between frontend and backend
+
+
+
 class UserCreate(BaseModel):
     name: str
     role:str
@@ -64,3 +68,9 @@ class UserCreate(BaseModel):
     logattp:int
     lockout:datetime
     
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+    
+class DeleteRequest(BaseModel):
+    target: str
