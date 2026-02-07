@@ -49,8 +49,8 @@ class Driver_Application(SQLModel, table=True):
     ApplicationID: Optional[int] = Field(unique=True, primary_key=True, default=None)
     Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
     UserID : int = Field(foreign_key="User.UserID")
-    Applicant_Email : str
-    Applicant_Phone_num : str
+    Applicant_Email : str = Field(unique = True)
+    Applicant_Phone_Num : str
     Applicant_Status : str
     Submitted_At : datetime
     
@@ -80,5 +80,9 @@ class ApplicationRequest(BaseModel):
     appEmail: str
     sponsEmail: str
     appPhoneNum: str
+    appStatus: str
     subTime: datetime
+    
+class AppDeleteReq(BaseModel):
+    id: int
     

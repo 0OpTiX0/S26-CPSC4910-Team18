@@ -1,7 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from db import getSession
 from sqlmodel import select, Session, delete
 from encrypt import encryptString,verifyPassword
+from datetime import datetime, timezone
+from mailTo import emailSponsor
+from typing import Optional, Literal
 from models import(
     User,
     Market,
@@ -12,7 +15,8 @@ from models import(
     UserCreate,
     LoginRequest,
     DeleteRequest,
-    ApplicationRequest
+    ApplicationRequest,
+    AppDeleteReq
 )
 
 
@@ -93,12 +97,87 @@ def submitApplication(payload: ApplicationRequest, session:Session = Depends(get
     user = session.exec(stmt).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not registered")
+    if user.UserID is None:
+        raise HTTPException(status_code=500, detail="User ID is missing for the user")
     
     stmt = select(Sponsor).where(Sponsor.Sponsor_Email == payload.sponsEmail)
     sponsor = session.exec(stmt).first()
-    if not sponsor:
+    if not sponsor or not sponsor.Sponsor_ID:
         raise HTTPException(status_code=404, detail="Sponsor not found")
     
     
+    if not emailSponsor(user.User_Email, sponsor.Sponsor_Email):
+        print("There was a problem sending the application")
+
     
-        
+    application = Driver_Application(
+        Sponsor_ID= sponsor.Sponsor_ID,
+        UserID= user.UserID,
+        Applicant_Email= payload.appEmail,
+        Applicant_Phone_Num=payload.appPhoneNum,
+        Applicant_Status="Pending",
+        Submitted_At= datetime.now(timezone.utc)
+    )
+    
+    session.add(application)
+    session.commit()
+    session.refresh(application)
+    
+    return{"message":"Email sent successfully and application saved to database!"}
+
+#Queries all applications from the database
+@app.get("/application")
+def getAllApplications(session:Session = Depends(getSession),
+                       sponsor_id: Optional[int] = Query(None),
+                       applicant_email: Optional[str] = Query(None),
+                       status: Optional[str] = Query(None)
+                       ):
+    stmt = select(Driver_Application)
+    
+    
+    if sponsor_id is not None:
+        stmt = stmt.where(Driver_Application.Sponsor_ID == sponsor_id)
+    if status:
+        stmt = stmt.where(Driver_Application.Applicant_Status == status)
+    if applicant_email:
+        stmt = stmt.where(Driver_Application.Applicant_Email == applicant_email)
+
+    return session.exec(stmt).all()
+
+
+#updates application status
+@app.patch("/application/{application_id}")
+def updateStatus(
+    application_id: int,
+    decision: Literal["Pending", "Approved", "Rejected"],
+    session: Session = Depends(getSession),
+):
+    stmt = select(Driver_Application).where(
+        Driver_Application.ApplicationID == application_id
+    )
+    application = session.exec(stmt).first()
+
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    application.Applicant_Status = decision
+    session.add(application)
+    session.commit()
+    session.refresh(application)
+
+    return application
+
+    
+@app.delete("/application")
+def deleteApp(payload:AppDeleteReq, session:Session = Depends(getSession)):
+    stmt = select(Driver_Application).where(Driver_Application.ApplicationID == payload.id)
+    target = session.exec(stmt).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Application not found.")
+    
+    session.delete(target)
+    session.commit()
+    return {"message":"Application Deleted Successfully"}
+
+    
+    
