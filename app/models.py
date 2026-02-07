@@ -53,6 +53,7 @@ class Driver_Application(SQLModel, table=True):
     Applicant_Phone_num : str
     Applicant_Status : str
     Submitted_At : datetime
+    
 
 
 # Payload classes for API Endpoints. They allow for information exchagne between frontend and backend
@@ -74,3 +75,10 @@ class LoginRequest(BaseModel):
     
 class DeleteRequest(BaseModel):
     target: str
+    
+class ApplicationRequest(BaseModel):
+    appEmail: str
+    sponsEmail: str
+    appPhoneNum: str
+    subTime: datetime
+    

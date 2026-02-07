@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from db import getSession
 from sqlmodel import select, Session, delete
+from encrypt import encryptString,verifyPassword
 from models import(
     User,
     Market,
@@ -10,9 +11,10 @@ from models import(
     Driver_Application,
     UserCreate,
     LoginRequest,
-    DeleteRequest
+    DeleteRequest,
+    ApplicationRequest
 )
-from encrypt import encryptString,verifyPassword
+
 
 app = FastAPI()
 session = getSession()
@@ -73,7 +75,6 @@ def login(payload:LoginRequest, session:Session = Depends(getSession)):
         if not verifyPassword(payload.password, user.User_Hashed_Pss):
                 raise HTTPException(status_code=401, detail="Invalid Credentials")
         
-        
         userRole = user.User_Role
         
         if userRole == "Admin":
@@ -84,4 +85,20 @@ def login(payload:LoginRequest, session:Session = Depends(getSession)):
                 return {"message":"Logged in as Sponsor_User"} 
         elif userRole == "Driver":
                 return{"message":"Logged in as Driver"}
+            
+
+@app.post("/application")
+def submitApplication(payload: ApplicationRequest, session:Session = Depends(getSession)):
+    stmt = select(User).where(User.User_Email == payload.appEmail)
+    user = session.exec(stmt).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not registered")
+    
+    stmt = select(Sponsor).where(Sponsor.Sponsor_Email == payload.sponsEmail)
+    sponsor = session.exec(stmt).first()
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+    
+    
+    
         
