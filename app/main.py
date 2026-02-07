@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
-from app.db import getSession
+from db import getSession
 from sqlmodel import select, Session, delete
-from app.models import(
+from models import(
     User,
     Market,
     Sponsor,
@@ -12,7 +12,7 @@ from app.models import(
     LoginRequest,
     DeleteRequest
 )
-from app.encrypt import encryptString,verifyPassword
+from encrypt import encryptString,verifyPassword
 
 app = FastAPI()
 session = getSession()
