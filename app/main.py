@@ -16,7 +16,8 @@ from models import(
     LoginRequest,
     DeleteRequest,
     ApplicationRequest,
-    AppDeleteReq
+    AppDeleteReq,
+    SponsorCreate
 )
 
 
@@ -180,4 +181,17 @@ def deleteApp(payload:AppDeleteReq, session:Session = Depends(getSession)):
     return {"message":"Application Deleted Successfully"}
 
     
-    
+@app.post("/sponsor")
+def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)):
+    sponsor = Sponsor(
+        Sponsor_Name=payload.name,
+        Market_ID=payload.market_id,
+        Sponsor_Description=payload.description,
+        Sponsor_Email=payload.email,
+        Sponsor_Phone_Num=payload.phone,
+    )
+
+    session.add(sponsor)
+    session.commit()
+    session.refresh(sponsor)
+    return sponsor

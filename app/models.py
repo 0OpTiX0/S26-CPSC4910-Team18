@@ -85,4 +85,11 @@ class ApplicationRequest(BaseModel):
     
 class AppDeleteReq(BaseModel):
     id: int
+
+class SponsorCreate(BaseModel):
+    name: str
+    market_id: int
+    description: str
+    email: str
+    phone: str
     
