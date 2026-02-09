@@ -20,6 +20,13 @@
                        class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50">
                 <p id="nameError" class="hidden text-xs text-red-600 mt-2">Please enter your name.</p>
             </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Phone</label>
+                <input id="phone" type="tel" placeholder="(555) 555-5555"
+                       class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50">
+                <p id="phoneError" class="text-xs text-red-600 mt-1 hidden"></p>
+            </div>
+
 
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-1">Email</label>
@@ -65,92 +72,7 @@
         </p>
     </div>
 
-    <script>
-        // UI-only signup behavior. Wire this to real API later.
-        const SIGNUP_ENDPOINT = "/auth/signup"; // placeholder
-
-        const form = document.getElementById("signupForm");
-        const fullName = document.getElementById("fullName");
-        const email = document.getElementById("email");
-        const password = document.getElementById("password");
-        const confirmPassword = document.getElementById("confirmPassword");
-        const role = document.getElementById("role");
-
-        const nameError = document.getElementById("nameError");
-        const emailError = document.getElementById("emailError");
-        const passwordError = document.getElementById("passwordError");
-        const confirmError = document.getElementById("confirmError");
-
-        const statusEl = document.getElementById("signupStatus");
-        const btn = document.getElementById("signupBtn");
-        const btnText = document.getElementById("signupBtnText");
-
-        function setStatus(message, isError=false) {
-            statusEl.textContent = message;
-            statusEl.classList.remove("hidden", "text-slate-600", "text-red-600");
-            statusEl.classList.add(isError ? "text-red-600" : "text-slate-600");
-        }
-
-        function validate() {
-            const nameOk = fullName.value.trim().length > 0;
-            const emailOk = email.value.trim() && /.+@.+\..+/.test(email.value);
-            const pwOk = password.value.trim().length >= 8;
-            const confirmOk = confirmPassword.value === password.value && confirmPassword.value.length > 0;
-
-            nameError.classList.toggle("hidden", nameOk);
-            emailError.classList.toggle("hidden", emailOk);
-            passwordError.classList.toggle("hidden", pwOk);
-            confirmError.classList.toggle("hidden", confirmOk);
-
-            return nameOk && emailOk && pwOk && confirmOk;
-        }
-
-        form.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            statusEl.classList.add("hidden");
-
-            if (!validate()) return;
-
-            btn.disabled = true;
-            btn.classList.add("opacity-80", "cursor-not-allowed");
-            btnText.textContent = "Creating…";
-
-            const payload = {
-                name: fullName.value.trim(),
-                email: email.value.trim(),
-                password: password.value,
-                role: role.value
-            };
-
-            try {
-                const res = await fetch(SIGNUP_ENDPOINT, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload)
-                });
-
-                if (res.ok) {
-                    setStatus("Account created! Redirecting to login…");
-                    setTimeout(() => window.location.href = "login.html", 800);
-                    return;
-                }
-
-                setStatus("Sign up failed. Try a different email.", true);
-            } catch (err) {
-                // No backend yet — keep UI flow testable
-                setStatus("Backend not connected yet — demo account created. Redirecting…");
-                setTimeout(() => window.location.href = "login.html", 800);
-            } finally {
-                btn.disabled = false;
-                btn.classList.remove("opacity-80", "cursor-not-allowed");
-                btnText.textContent = "Create Account";
-            }
-        });
-
-        fullName.addEventListener("blur", validate);
-        email.addEventListener("blur", validate);
-        password.addEventListener("blur", validate);
-        confirmPassword.addEventListener("blur", validate);
-    </script>
+    <script src="../js/api.js"></script>
+    <script src="../js/auth-signup.js"></script>
 </body>
 </html>

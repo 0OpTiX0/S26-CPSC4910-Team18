@@ -61,12 +61,12 @@ class Driver_Application(SQLModel, table=True):
 
 class UserCreate(BaseModel):
     name: str
-    role:str
-    email:str
-    phone:str
-    pssw:str
-    logattp:int
-    lockout:datetime
+    role: str
+    email: str
+    phone: str
+    pssw: str
+    logattp: int = 0
+    lockout: Optional[datetime] = None
     
 class LoginRequest(BaseModel):
     email: str
@@ -79,14 +79,15 @@ class ApplicationRequest(BaseModel):
     appEmail: str
     sponsEmail: str
     appPhoneNum: str
-    appStatus: str
-    subTime: datetime
+    appStatus: Optional[str] = None
+    subTime: Optional[datetime] = None
     
 class AppDeleteReq(BaseModel):
     id: int
 
 class SponsorCreate(BaseModel):
     name: str
+    market_id: int
     description: str
     email: str
     phone: str
