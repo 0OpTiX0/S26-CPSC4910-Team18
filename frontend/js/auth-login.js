@@ -64,7 +64,11 @@
 
       showStatus("Logged in! Redirecting…");
       // For now, send everyone to the home page.
-      setTimeout(() => window.location.href = "index.html", 500);
+      const role = (data.role || "").toLowerCase();
+      const landing = (role === "sponsor" || role === "sponsor_user")
+        ? "sponsor_applications.html"
+        : "index.html";
+      setTimeout(() => window.location.href = landing, 500);
     } catch (err) {
       const payload = err?.data?.detail ?? err?.data ?? null;
 
