@@ -123,11 +123,9 @@ def submitApplication(payload: ApplicationRequest, session:Session = Depends(get
     if not sponsor or not sponsor.Sponsor_ID:
         raise HTTPException(status_code=404, detail="Sponsor not found")
     
-    
     if not emailSponsor(user.User_Email, sponsor.Sponsor_Email):
-        print("There was a problem sending the application")
-
-    
+        raise HTTPException(status_code=502, detail="Email send failed; check SMTP/SASL settings")
+        
     application = Driver_Application(
         Sponsor_ID= sponsor.Sponsor_ID,
         UserID= user.UserID,

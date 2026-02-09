@@ -4,13 +4,16 @@ import os
 
 SMTP_HOST = "smtp.office365.com"
 SMTP_PORT = 587
-SMTP_USER = os.getenv("EMAIL_CLIENT")        # your Outlook address
-SMTP_PASS = os.getenv("EMAIL_APP_PASSWORD")  # or account password if SMTP AUTH allows it
+SMTP_USER = os.getenv("EMAIL_CLIENT")         # your Outlook address
+SMTP_APP_PASS = os.getenv("EMAIL_APP_PASSWORD")
+SMTP_PASS = os.getenv("EMAIL_PASSWORD")
 
 # Function to send emails to Sponsors.
 def emailSponsor(senderEmail: str, sponsorEmail: str) -> bool:
-    if not SMTP_USER or not SMTP_PASS:
-        print("Error: EMAIL_CLIENT and EMAIL_APP_PASSWORD environment variables must be set")
+    # Prefer app password when provided; fall back to normal password.
+    smtp_pass = SMTP_APP_PASS or SMTP_PASS
+    if not SMTP_USER or not smtp_pass:
+        print("Error: EMAIL_CLIENT and EMAIL_APP_PASSWORD or EMAIL_PASSWORD environment variables must be set")
         return False
     try:
         msg = EmailMessage()
@@ -26,7 +29,7 @@ def emailSponsor(senderEmail: str, sponsorEmail: str) -> bool:
             smtp.ehlo()
             smtp.starttls()
             smtp.ehlo()
-            smtp.login(SMTP_USER, SMTP_PASS)
+            smtp.login(SMTP_USER, smtp_pass)
             smtp.send_message(msg)
 
         return True
