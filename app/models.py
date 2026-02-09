@@ -28,7 +28,6 @@ class Sponsor(SQLModel, table=True):
     __tablename__ = "Sponsor"
     Sponsor_ID : Optional[int] = Field(unique=True, primary_key=True, default=None)
     Sponsor_Name : str
-    Market_ID : int = Field(foreign_key="Market.Market_ID")
     Sponsor_Description : str
     Sponsor_Email : str = Field(unique=True)
     Sponsor_Phone_Num : str = Field(unique=True)
@@ -88,7 +87,6 @@ class AppDeleteReq(BaseModel):
 
 class SponsorCreate(BaseModel):
     name: str
-    market_id: int
     description: str
     email: str
     phone: str

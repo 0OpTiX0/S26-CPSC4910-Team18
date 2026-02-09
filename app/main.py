@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from db import getSession
 from sqlmodel import select, Session, delete
+from sqlalchemy import func
 from encrypt import encryptString,verifyPassword
 from datetime import datetime, timezone
 from mailTo import emailSponsor
@@ -30,8 +31,24 @@ def health():
 
 
 @app.get("/user")
-def getUsers(session: Session = Depends(getSession)):
+def getUsers(
+    session: Session = Depends(getSession),
+    userName: Optional[str] = Query(None),
+    userEmail: Optional[str] = Query(None),
+    userPhoneNum: Optional[str] = Query(None),
+    userRole: Optional[str] = Query(None),
+):
     stmt = select(User)
+
+    if userName:
+        stmt = stmt.where(func.lower(User.User_Name).like(f"%{userName.lower()}%"))
+    if userEmail:
+        stmt = stmt.where(func.lower(User.User_Email).like(f"%{userEmail.lower()}%"))
+    if userPhoneNum:
+        stmt = stmt.where(func.lower(User.User_Phone_Num).like(f"%{userPhoneNum.lower()}%"))
+    if userRole:
+        stmt = stmt.where(User.User_Role == userRole)
+
     users = session.exec(stmt).all()
     return users
 
@@ -135,7 +152,6 @@ def getAllApplications(session:Session = Depends(getSession),
                        ):
     stmt = select(Driver_Application)
     
-    
     if sponsor_id is not None:
         stmt = stmt.where(Driver_Application.Sponsor_ID == sponsor_id)
     if status:
@@ -185,7 +201,6 @@ def deleteApp(payload:AppDeleteReq, session:Session = Depends(getSession)):
 def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)):
     sponsor = Sponsor(
         Sponsor_Name=payload.name,
-        Market_ID=payload.market_id,
         Sponsor_Description=payload.description,
         Sponsor_Email=payload.email,
         Sponsor_Phone_Num=payload.phone,
@@ -195,3 +210,25 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
     session.commit()
     session.refresh(sponsor)
     return sponsor
+
+@app.get("/sponsors")
+def getSponsors(
+    session: Session = Depends(getSession),
+    sponsorName: Optional[str] = Query(None),
+    sponsorPhoneNum: Optional[str] = Query(None),
+    sponsorEmail: Optional[str] = Query(None),
+    sponsorDescription: Optional[str] = Query(None),
+):
+    stmt = select(Sponsor)
+
+    if sponsorName:
+        stmt = stmt.where(func.lower(Sponsor.Sponsor_Name).like(f"%{sponsorName.lower()}%"))
+    if sponsorPhoneNum:
+        stmt = stmt.where(func.lower(Sponsor.Sponsor_Phone_Num).like(f"%{sponsorPhoneNum.lower()}%"))
+    if sponsorEmail:
+        stmt = stmt.where(func.lower(Sponsor.Sponsor_Email).like(f"%{sponsorEmail.lower()}%"))
+    if sponsorDescription:
+        stmt = stmt.where(func.lower(Sponsor.Sponsor_Description).like(f"%{sponsorDescription.lower()}%"))
+
+    sponsors = session.exec(stmt).all()
+    return sponsors
