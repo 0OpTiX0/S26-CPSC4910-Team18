@@ -193,17 +193,17 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
 
 
 
-@app.get("/sponsor/lookup")
-def sponsor_lookup(email: str = Query(...), session: Session = Depends(getSession)):
-    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == email)).first()
-    if not sponsor:
-        raise HTTPException(status_code=404, detail="Sponsor not found for that email")
-   
-    return {
-        "sponsorId": sponsor.Sponsor_ID,
-        "sponsorEmail": sponsor.Sponsor_Email,
-        "sponsorName": sponsor.Sponsor_Name,
-    }
+# @app.get("/sponsor/lookup")
+# def sponsor_lookup(email: str = Query(...), session: Session = Depends(getSession)):
+#     sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == email)).first()
+#     if not sponsor:
+#         raise HTTPException(status_code=404, detail="Sponsor not found for that email")
+#    
+#     return {
+#         "sponsorId": sponsor.Sponsor_ID,
+#         "sponsorEmail": sponsor.Sponsor_Email,
+#         "sponsorName": sponsor.Sponsor_Name,
+#     }
 
 
 
