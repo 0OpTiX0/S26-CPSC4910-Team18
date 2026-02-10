@@ -45,18 +45,37 @@ def health():
 # -------------------------
 
 @app.get("/user")
-def getUsers(session: Session = Depends(getSession)):
-    return session.exec(select(User)).all()
+def getUsers(
+    session: Session = Depends(getSession),
+    userName: Optional[str] = Query(None),
+    userEmail: Optional[str] = Query(None),
+    userPhoneNum: Optional[str] = Query(None),
+    userRole: Optional[str] = Query(None),
+):
+    stmt = select(User)
+
+    if userName:
+        stmt = stmt.where(func.lower(User.User_Name).like(f"%{userName.lower()}%"))
+    if userEmail:
+        stmt = stmt.where(func.lower(User.User_Email).like(f"%{userEmail.lower()}%"))
+    if userPhoneNum:
+        stmt = stmt.where(func.lower(User.User_Phone_Num).like(f"%{userPhoneNum.lower()}%"))
+    if userRole:
+        stmt = stmt.where(User.User_Role == userRole)
+
+    users = session.exec(stmt).all()
+    return users
+
+
 
 @app.post("/user")
 def createUser(payload: UserCreate, session: Session = Depends(getSession)):
-    # Uniqueness checks
+    
     if session.exec(select(User).where(User.User_Email == payload.email)).first():
         raise HTTPException(status_code=409, detail="Email already in use")
     if session.exec(select(User).where(User.User_Phone_Num == payload.phone)).first():
         raise HTTPException(status_code=409, detail="Phone already in use")
 
-    # 1) Create User (login uses this)
     user = User(
         User_Name=payload.name,
         User_Role=payload.role,
@@ -70,7 +89,7 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
     session.commit()
     session.refresh(user)
 
-    # 2) If sponsor role, also ensure Sponsor row exists + link Sponsor_User
+
     if (payload.role or "").lower() == "sponsor":
         sponsor = session.exec(
             select(Sponsor).where(Sponsor.Sponsor_Email == payload.email)
@@ -98,6 +117,9 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
             session.commit()
 
     return {"userId": user.UserID, "role": user.User_Role, "email": user.User_Email}
+
+
+
 
 @app.delete("/user")
 def deleteUser(payload: DeleteRequest, session: Session = Depends(getSession)):
@@ -162,93 +184,29 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
         "name": user.User_Name,
     }
 
-# -------------------------
-# PASSWORD RESET / CHANGE
-# -------------------------
 
-_reset_tokens: dict[str, dict] = {}
-
-class PasswordResetEmailRequest(BaseModel):
-    email: str
-
-class PasswordResetRequest(BaseModel):
-    token: str
-    new_password: str
-
-class PasswordChangeRequest(BaseModel):
-    email: str
-    current_password: str
-    new_password: str
-
-@app.post("/password/change")
-def change_password(payload: PasswordChangeRequest, session: Session = Depends(getSession)):
-    user = session.exec(select(User).where(User.User_Email == payload.email)).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    if not verifyPassword(payload.current_password, user.User_Hashed_Pss):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    user.User_Hashed_Pss = encryptString(payload.new_password)
-    user.User_Login_Attempts = 0
-    user.User_Lockout_Time = None
-    session.add(user)
-    session.commit()
-    return {"message": "Password updated successfully"}
-
-@app.post("/password/request-reset")
-def request_password_reset(payload: PasswordResetEmailRequest, session: Session = Depends(getSession)):
-    user = session.exec(select(User).where(User.User_Email == payload.email)).first()
-    if not user:
-        return {"message": "If that email exists, a reset link was sent."}
-
-    token = secrets.token_urlsafe(32)
-    _reset_tokens[token] = {
-        "userId": user.UserID,
-        "expiresAt": (datetime.now(timezone.utc) + timedelta(minutes=20)).timestamp(),
-    }
-    return {"message": "Reset token generated (demo).", "token": token}
-
-@app.post("/password/reset")
-def reset_password(payload: PasswordResetRequest, session: Session = Depends(getSession)):
-    record = _reset_tokens.get(payload.token)
-    if not record:
-        raise HTTPException(status_code=400, detail="Invalid or expired token")
-
-    if datetime.now(timezone.utc).timestamp() > float(record["expiresAt"]):
-        _reset_tokens.pop(payload.token, None)
-        raise HTTPException(status_code=400, detail="Invalid or expired token")
-
-    user = session.get(User, int(record["userId"]))
-    if not user:
-        _reset_tokens.pop(payload.token, None)
-        raise HTTPException(status_code=400, detail="Invalid or expired token")
-
-    user.User_Hashed_Pss = encryptString(payload.new_password)
-    user.User_Login_Attempts = 0
-    user.User_Lockout_Time = None
-
-    session.add(user)
-    session.commit()
-    _reset_tokens.pop(payload.token, None)
-
-    return {"message": "Password updated successfully"}
 
 # -------------------------
 # SPONSOR LOOKUP / LISTING
 # -------------------------
+
+
+
 
 @app.get("/sponsor/lookup")
 def sponsor_lookup(email: str = Query(...), session: Session = Depends(getSession)):
     sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == email)).first()
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found for that email")
-    # NOTE: sponsor-applications.js expects sponsorId
+   
     return {
         "sponsorId": sponsor.Sponsor_ID,
         "sponsorEmail": sponsor.Sponsor_Email,
         "sponsorName": sponsor.Sponsor_Name,
     }
+
+
+
 
 @app.get("/sponsors")
 def getSponsors(
@@ -305,6 +263,10 @@ def submitApplication(payload: ApplicationRequest, session: Session = Depends(ge
 
     return {"message": "Email sent successfully and application saved to database!"}
 
+
+
+
+
 @app.get("/application")
 def getAllApplications(
     session: Session = Depends(getSession),
@@ -321,6 +283,9 @@ def getAllApplications(
         stmt = stmt.where(Driver_Application.Applicant_Email == applicant_email)
 
     return session.exec(stmt).all()
+
+
+
 
 @app.patch("/application/{application_id}")
 def updateStatus(
@@ -342,6 +307,9 @@ def updateStatus(
 
     return application
 
+
+
+
 @app.delete("/application")
 def deleteApp(payload: AppDeleteReq, session: Session = Depends(getSession)):
     target = session.exec(
@@ -353,6 +321,9 @@ def deleteApp(payload: AppDeleteReq, session: Session = Depends(getSession)):
     session.delete(target)
     session.commit()
     return {"message": "Application Deleted Successfully"}
+
+
+
 
 @app.post("/sponsor")
 def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)):
