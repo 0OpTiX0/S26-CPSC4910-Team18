@@ -248,6 +248,14 @@ def submitApplication(payload: ApplicationRequest, session: Session = Depends(ge
     if not emailSponsor(user.User_Email, sponsor.Sponsor_Email):
         print("There was a problem sending the application")
 
+    existing = session.exec(select(Driver_Application).where(Driver_Application.Applicant_Email == payload.appEmail)).first()
+    if existing:
+        if existing.Applicant_Status == "Rejected":
+            session.delete(existing)
+            session.commit()
+        else:
+            raise HTTPException(status_code=400, detail="An active application already exists")
+
     application = Driver_Application(
         Sponsor_ID=sponsor.Sponsor_ID,
         UserID=user.UserID,
@@ -291,6 +299,7 @@ def getAllApplications(
 def updateStatus(
     application_id: int,
     decision: Literal["Pending", "Approved", "Rejected"],
+    rejection_reason: Optional[str] = None,
     session: Session = Depends(getSession),
 ):
     application = session.exec(
@@ -301,6 +310,12 @@ def updateStatus(
         raise HTTPException(status_code=404, detail="Application not found")
 
     application.Applicant_Status = decision
+
+    if decision = "Rejected":
+        application.Rejection_Reason = rejection_reason
+    else:
+        application.Rejection_Reason = None
+        
     session.add(application)
     session.commit()
     session.refresh(application)
