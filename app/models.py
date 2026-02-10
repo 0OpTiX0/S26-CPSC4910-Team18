@@ -51,6 +51,7 @@ class Driver_Application(SQLModel, table=True):
     Applicant_Email : str = Field(unique = True)
     Applicant_Phone_Num : str
     Applicant_Status : str
+    Rejection_Reason : Optional[str] = None
     Submitted_At : datetime
     
 
