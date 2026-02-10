@@ -107,14 +107,15 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
             session.refresh(sponsor)
 
         # Link table (UserID -> Sponsor_ID)
-        link = session.exec(
-            select(Sponsor_User).where(Sponsor_User.UserID == user.UserID)
-        ).first()
+        if sponsor.Sponsor_ID is not None:
+            link = session.exec(
+                select(Sponsor_User).where(Sponsor_User.UserID == user.UserID)
+            ).first()
 
-        if not link:
-            link = Sponsor_User(UserID=user.UserID, Sponsor_ID=sponsor.Sponsor_ID)
-            session.add(link)
-            session.commit()
+            if not link:
+                link = Sponsor_User(UserID=user.UserID, Sponsor_ID=sponsor.Sponsor_ID)
+                session.add(link)
+                session.commit()
 
     return {"userId": user.UserID, "role": user.User_Role, "email": user.User_Email}
 
