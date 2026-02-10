@@ -311,7 +311,7 @@ def updateStatus(
 
     application.Applicant_Status = decision
 
-    if decision = "Rejected":
+    if decision == "Rejected":
         application.Rejection_Reason = rejection_reason
     else:
         application.Rejection_Reason = None
