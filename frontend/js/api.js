@@ -11,7 +11,7 @@
     return window.location.origin || "http://localhost:8000";
   };
 
-  const API_BASE = (window.__API_BASE__ || fromStorage() || "http://localhost:8000").replace(/\/+$/, "");
+  const API_BASE = (window.__API_BASE__ || fromStorage() || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
   async function request(path, { method = "GET", body, headers = {} } = {}) {
     const url = `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
