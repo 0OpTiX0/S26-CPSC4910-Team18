@@ -4,56 +4,74 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Good Driver</title>
-
-  <!-- Tailwind build output -->
   <link rel="stylesheet" href="output.css" />
 </head>
 
 <body class="bg-slate-100 min-h-screen font-sans text-slate-900">
-  <!-- Top Nav -->
-  <header class="w-full">
-    <div class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-      <!-- Left: small brand mark -->
-      <div class="flex items-center gap-3">
+  <header class="w-full h-20 bg-white border-b border-slate-200 relative z-40">
+    <div class="max-w-6xl mx-auto px-6 h-full flex items-center justify-between">
+      
+      <div class="flex items-center">
         <div class="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow">
           🚗
         </div>
       </div>
 
-      <!-- Right: actions -->
       <nav class="flex items-center gap-3">
-        <a href="signup.html"
-           class="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition text-sm font-semibold">
-          Sign Up
-        </a>
-        <a href="login.html"
-           class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 transition text-white text-sm font-semibold shadow active:scale-[0.98]">
-          Login
-        </a>
+        <div id="nav-guest" class="flex gap-3">
+          <a href="signup.html" class="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition text-sm font-semibold">Sign Up</a>
+          <a href="login.html" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 transition text-white text-sm font-semibold shadow">Login</a>
+        </div>
+
+        <div id="nav-user" class="hidden flex items-center">
+          <div class="relative">
+            <button id="profile-btn" class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold shadow-md focus:outline-none hover:bg-blue-700 transition">
+            </button>
+
+            <div id="profile-dropdown" class="fixed right-6 md:right-[calc((100vw-72rem)/2+1.5rem)] top-20 w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl py-2 hidden z-[999]">
+              
+              <div class="px-4 py-2 border-b border-slate-100">
+                <p id="user-name" class="text-sm font-bold text-slate-900"></p>
+                <p id="user-email" class="text-xs text-slate-500 truncate"></p>
+              </div>
+
+              <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 min-h-[80px]">
+                <div id="status-loading" class="text-xs text-slate-500 italic">Checking status...</div>
+                <div id="status-content" class="hidden">
+                  <div class="flex justify-between items-center">
+                    <span id="app-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold"></span>
+                    <span id="app-date" class="text-[10px] text-slate-500"></span>
+                  </div>
+                  <p id="app-sponsor" class="text-xs font-semibold text-slate-700 mt-1"></p>
+                </div>
+              </div>
+
+              <a href="view-status.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Application Status</a>
+              <a href="catalog.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Sponsor Catalog</a>
+
+              <hr class="my-1 border-slate-100">
+
+              <button id="logout-btn" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition">
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
       </nav>
     </div>
   </header>
 
-  <!-- Center Content -->
-  <main class="min-h-[75vh] flex items-center justify-center px-6">
+  <main class="flex items-center justify-center px-6" style="min-height: calc(100vh - 80px);">
     <div class="max-w-2xl text-center">
       <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900">
         Good Driver
       </h1>
-
       <p class="mt-4 text-lg md:text-xl text-slate-600 leading-relaxed">
         A simple rewards platform that encourages safer driving through points, redemption, and easy program management.
       </p>
-
       <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-        <a href="login.html"
-           class="px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 transition text-white font-bold shadow active:scale-[0.98]">
-          Get Started
-        </a>
-        <a href="signup.html"
-           class="px-7 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition font-bold">
-          Create Account
-        </a>
+        <a href="login.html" class="px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 transition text-white font-bold shadow">Get Started</a>
+        <a href="signup.html" class="px-7 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition font-bold">Create Account</a>
       </div>
     </div>
   </main>
@@ -61,6 +79,8 @@
   <footer class="py-8 text-center text-sm text-slate-500">
     © 2026 Good Driver
   </footer>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/navbar.js"></script>
 </body>
 </html>
-
