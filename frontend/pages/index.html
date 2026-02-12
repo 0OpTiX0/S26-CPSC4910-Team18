@@ -35,9 +35,25 @@
                 <p id="user-email" class="text-xs text-slate-500 truncate"></p>
               </div>
 
-              <a href="view-status.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Application Status</a>
-              <a href="sponsor_catalog.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Sponsor Catalog</a>
-              <a href="settings.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Settings</a>
+              <div class="px-4 py-3 bg-blue-50/50 border-b border-slate-100">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Current Points</span>
+                    <span class="text-[10px] font-medium text-slate-400">Good Driver®</span>
+                </div>
+                <div class="flex items-baseline gap-1">
+                    <span id="user-points" class="text-2xl font-black text-slate-900">0</span>
+                    <span class="text-xs font-bold text-slate-500">pts</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden">
+                    <div id="points-progress" class="h-full bg-blue-600 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="py-1">
+                <a href="view-status.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Application Status</a>
+                <a href="sponsor_catalog.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Sponsor Catalog</a>
+                <a href="settings.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Settings</a>
+              </div>
 
               <hr class="my-1 border-slate-100">
 

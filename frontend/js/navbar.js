@@ -8,13 +8,26 @@ document.addEventListener('DOMContentLoaded', async () =>
     {
         document.getElementById('nav-guest')?.classList.add('hidden');
         document.getElementById('nav-user')?.classList.remove('hidden');
-        document.getElementById('nav-user')?.classList.add('flex'); // Ensure flex is applied
+        document.getElementById('nav-user')?.classList.add('flex');
 
-        if (profileBtn) {
+        if (profileBtn) 
+        {
             profileBtn.textContent = storedUser.name.split(' ').map(n => n[0]).join('').toUpperCase();
         }
         document.getElementById('user-name').textContent = storedUser.name;
         document.getElementById('user-email').textContent = storedUser.email;
+
+        const points = storedUser.points || 0;
+        const pointsElement = document.getElementById('user-points');
+        const progressElement = document.getElementById('points-progress');
+
+        if (pointsElement) pointsElement.textContent = points.toLocaleString();
+
+        if (progressElement) 
+        {
+            const percentage = Math.min((points / 1000) * 100, 100);
+            setTimeout(() => progressElement.style.width = `${percentage}%`, 300);
+        }
 
     }
 
