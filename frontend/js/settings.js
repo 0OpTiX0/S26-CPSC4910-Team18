@@ -1,7 +1,9 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => 
+{
     const user = JSON.parse(localStorage.getItem('gd_user'));
 
-    if (!user) {
+    if (!user) 
+    {
         window.location.href = 'login.html';
         return;
     }
@@ -77,4 +79,21 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Profile updated successfully!");
         }, 600);
     });
+
+    const deleteBtn = document.getElementById('delete-account-btn');
+
+    if (deleteBtn) 
+    {
+        deleteBtn.addEventListener('click', () => 
+        {
+        const confirmed = confirm("Are you sure you want to delete your account? This will permanently remove your data and access to the platform.");
+
+        if (confirmed) 
+        {
+            localStorage.removeItem('gd_user');
+            alert("Your account has been successfully deleted.");
+            window.location.href = 'index.html';
+        }
+    });
+}
 });

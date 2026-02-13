@@ -17,6 +17,23 @@ document.addEventListener('DOMContentLoaded', async () =>
         document.getElementById('user-name').textContent = storedUser.name;
         document.getElementById('user-email').textContent = storedUser.email;
 
+        const userRole = storedUser.role ? storedUser.role.toLowerCase() : null;
+        applyRolePermissions(userRole);
+
+        if (userRole === 'driver') 
+        {
+            const points = storedUser.points || 0;
+            const pointsElement = document.getElementById('user-points');
+            const progressElement = document.getElementById('points-progress');
+
+            if (pointsElement) pointsElement.textContent = points.toLocaleString();
+            if (progressElement) 
+            {
+                const percentage = Math.min((points / 1000) * 100, 100);
+                setTimeout(() => progressElement.style.width = `${percentage}%`, 300);
+            }
+        }
+
         const points = storedUser.points || 0;
         const pointsElement = document.getElementById('user-points');
         const progressElement = document.getElementById('points-progress');
@@ -49,3 +66,13 @@ document.addEventListener('DOMContentLoaded', async () =>
         window.location.href = 'index.html';
     });
 });
+
+function applyRolePermissions(role) 
+{
+    document.querySelectorAll('.role-specific').forEach(el => el.classList.add('hidden'));
+
+    if (role) 
+    {
+        document.querySelectorAll(`.role-${role}`).forEach(el => el.classList.remove('hidden'));
+    }
+}

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Point Audit - Admin Console</title>
+  <link rel="stylesheet" href="output.css" />
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+  
+  <header class="w-full h-20 bg-white border-b border-slate-200 sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 h-full flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="index.html" class="h-10 w-10 rounded-xl bg-indigo-900 text-white flex items-center justify-center shadow">🛡️</a>
+        <h1 class="text-lg font-bold">Admin Audit</h1>
+      </div>
+      <a href="index.html" class="text-sm font-medium text-slate-600 hover:text-slate-900 transition">Exit Console</a>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-12">
+    <div class="mb-8 flex justify-between items-end">
+      <div>
+        <h2 class="text-3xl font-black text-slate-900">Point Change History</h2>
+        <p class="text-slate-500">Review Sponsor-initiated point adjustments to ensure Driver fairness.</p>
+      </div>
+      <div class="flex gap-2">
+        <input type="text" placeholder="Search Sponsor or Driver..." class="px-4 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+        <button class="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold hover:bg-slate-50 transition">Filter</button>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <tr>
+            <th class="px-6 py-4">Timestamp</th>
+            <th class="px-6 py-4">Sponsor</th>
+            <th class="px-6 py-4">Driver</th>
+            <th class="px-6 py-4">Adjustment</th>
+            <th class="px-6 py-4">Reason Given</th>
+            <th class="px-6 py-4 text-right">Action</th>
+          </tr>
+        </thead>
+        <tbody class="text-sm divide-y divide-slate-100">
+          <tr>
+            <td class="px-6 py-4 text-slate-500">Feb 13, 2026 2:15 PM</td>
+            <td class="px-6 py-4 font-bold text-slate-900">Globex Corp</td>
+            <td class="px-6 py-4 text-slate-700">Sarah Jenkins</td>
+            <td class="px-6 py-4">
+              <span class="text-green-600 font-black">+250 pts</span>
+            </td>
+            <td class="px-6 py-4 text-slate-600 italic">"Zero incidents in Q1 bonus"</td>
+            <td class="px-6 py-4 text-right">
+              <button class="px-3 py-1 rounded-lg border border-slate-200 text-xs font-bold hover:bg-slate-50 transition">Flag Review</button>
+            </td>
+          </tr>
+          <tr>
+            <td class="px-6 py-4 text-slate-500">Feb 12, 2026 11:30 AM</td>
+            <td class="px-6 py-4 font-bold text-slate-900">Soylent Inc</td>
+            <td class="px-6 py-4 text-slate-700">Mike Ross</td>
+            <td class="px-6 py-4">
+              <span class="text-red-600 font-black">-500 pts</span>
+            </td>
+            <td class="px-6 py-4 text-slate-600 italic">"Hard braking violation #442"</td>
+            <td class="px-6 py-4 text-right">
+              <button class="px-3 py-1 rounded-lg border border-slate-200 text-xs font-bold hover:bg-slate-50 transition text-red-600 border-red-100 bg-red-50">Under Review</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/navbar.js"></script>
+</body>
+</html>
