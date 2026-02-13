@@ -8,13 +8,62 @@ document.addEventListener('DOMContentLoaded', () =>
         return;
     }
 
+    const editActions = document.getElementById('edit-actions');
     const editBtn = document.getElementById('edit-toggle-btn');
     const cancelBtn = document.getElementById('cancel-btn');
     const viewMode = document.getElementById('view-mode');
     const editMode = document.getElementById('edit-mode');
     const form = document.getElementById('settings-form');
-
     const profileInitials = document.getElementById('profile-initials');
+
+    editBtn.addEventListener('click', () => 
+    {
+        viewMode.classList.add('hidden');
+        editMode.classList.remove('hidden');
+        
+        editBtn.classList.add('hidden');
+        editActions.classList.remove('hidden');
+    });
+
+    cancelBtn.addEventListener('click', () => 
+    {
+        viewMode.classList.remove('hidden');
+        editMode.classList.add('hidden');
+        
+        editBtn.classList.remove('hidden');
+        editActions.classList.add('hidden');
+
+        loadUserData(); 
+    });
+
+    form.addEventListener('submit', async (e) => 
+    {
+        e.preventDefault();
+        
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.textContent = "Save";
+        submitBtn.disabled = true;
+
+        setTimeout(() => 
+        {
+            user.name = document.getElementById('set-name').value;
+            user.bio = document.getElementById('set-bio').value;
+
+            localStorage.setItem('gd_user', JSON.stringify(user));
+
+            loadUserData();
+
+            viewMode.classList.remove('hidden');
+            editMode.classList.add('hidden');
+            editBtn.classList.remove('hidden');
+            editActions.classList.add('hidden');
+
+            submitBtn.textContent = "Save Changes";
+            submitBtn.disabled = false;
+
+            alert("Profile updated successfully!");
+        }, 600);
+    });
 
     function loadUserData() {
         if (profileInitials) {
