@@ -93,3 +93,8 @@ class SponsorCreate(BaseModel):
     email: str
     phone: str
     
+    
+    
+class CredsUpdate(BaseModel):
+    type:str
+    payload:str

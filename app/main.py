@@ -24,6 +24,7 @@ from models import (
     ApplicationRequest,
     AppDeleteReq,
     SponsorCreate,
+    CredsUpdate
 )
 
 app = FastAPI()
@@ -194,20 +195,6 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
 
 
 
-# @app.get("/sponsor/lookup")
-# def sponsor_lookup(email: str = Query(...), session: Session = Depends(getSession)):
-#     sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == email)).first()
-#     if not sponsor:
-#         raise HTTPException(status_code=404, detail="Sponsor not found for that email")
-#    
-#     return {
-#         "sponsorId": sponsor.Sponsor_ID,
-#         "sponsorEmail": sponsor.Sponsor_Email,
-#         "sponsorName": sponsor.Sponsor_Name,
-#     }
-
-
-
 
 @app.get("/sponsors")
 def getSponsors(
@@ -316,7 +303,24 @@ def updateStatus(
         application.Rejection_Reason = rejection_reason
     else:
         application.Rejection_Reason = None
-        
+
+    if decision == "Approved":
+        driver_link = session.exec(
+            select(Driver_User).where(Driver_User.UserID == application.UserID)
+        ).first()
+
+        if not driver_link:
+            session.add(
+                Driver_User(
+                    UserID=application.UserID,
+                    Sponsor_ID=application.Sponsor_ID,
+                    User_Points=0,
+                )
+            )
+        else:
+            driver_link.Sponsor_ID = application.Sponsor_ID
+            session.add(driver_link)
+
     session.add(application)
     session.commit()
     session.refresh(application)
@@ -354,3 +358,44 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
     session.commit()
     session.refresh(sponsor)
     return sponsor
+
+
+
+
+
+
+#Endpoint for updating user information
+
+@app.patch("/account/{account_id}")
+def updateCreds(account_id: int, update:CredsUpdate, session:Session = Depends(getSession)):
+    stmt = select(User).where(User.UserID == account_id)
+    user = session.exec(stmt).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User Not Found!")
+    
+
+    
+    if(update.type.lower() == "password"):
+        user.User_Hashed_Pss =  encryptString(update.payload)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    elif(update.type.lower() == "email"):
+        user.User_Email = update.payload
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    elif(update.type.lower() == "username"):
+        user.User_Name = update.payload
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    elif(update.type.lower() == "phone number"):
+        user.User_Phone_Num = update.payload
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    else:
+        raise HTTPException(status_code=400, detail="Could not update account. Check input")
+        
+    return({"message": "User updated successfully"})
