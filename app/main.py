@@ -24,7 +24,7 @@ from models import (
     ApplicationRequest,
     AppDeleteReq,
     SponsorCreate,
-    CredsUpdate
+    AdminUpdate
 )
 
 app = FastAPI()
@@ -303,24 +303,7 @@ def updateStatus(
         application.Rejection_Reason = rejection_reason
     else:
         application.Rejection_Reason = None
-
-    if decision == "Approved":
-        driver_link = session.exec(
-            select(Driver_User).where(Driver_User.UserID == application.UserID)
-        ).first()
-
-        if not driver_link:
-            session.add(
-                Driver_User(
-                    UserID=application.UserID,
-                    Sponsor_ID=application.Sponsor_ID,
-                    User_Points=0,
-                )
-            )
-        else:
-            driver_link.Sponsor_ID = application.Sponsor_ID
-            session.add(driver_link)
-
+        
     session.add(application)
     session.commit()
     session.refresh(application)
@@ -363,7 +346,7 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
 
 
 
-
+"""
 #Endpoint for updating user information
 
 @app.patch("/account/{account_id}")
@@ -373,8 +356,9 @@ def updateCreds(account_id: int, update:CredsUpdate, session:Session = Depends(g
     if not user:
         raise HTTPException(status_code=404, detail="User Not Found!")
     
-
     
+    
+
     if(update.type.lower() == "password"):
         user.User_Hashed_Pss =  encryptString(update.payload)
         session.add(user)
@@ -398,4 +382,55 @@ def updateCreds(account_id: int, update:CredsUpdate, session:Session = Depends(g
     else:
         raise HTTPException(status_code=400, detail="Could not update account. Check input")
         
+        
     return({"message": "User updated successfully"})
+    """
+    
+
+@app.patch("/admin/{sponsor_id}")
+def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(getSession)):
+    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
+    sponsor = session.exec(stmt).first()
+    
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Requested sponsor does not exist")
+    
+    if update.type.strip().lower() == "name":
+        sponsor.Sponsor_Name = update.payload
+        session.add(sponsor)
+        session.commit()
+        session.refresh(sponsor)
+    elif update.type.strip().lower() == "email":
+        sponsor.Sponsor_Email = update.payload
+        session.add(sponsor)
+        session.commit()
+        session.refresh(sponsor)
+    elif update.type.strip().lower() == "description":
+        sponsor.Sponsor_Description = update.payload
+        session.add(sponsor)
+        session.commit()
+        session.refresh(sponsor)
+    elif update.type.strip().lower() == "phone number":
+        sponsor.Sponsor_Phone_Num = update.payload
+        session.add(sponsor)
+        session.commit()
+        session.refresh(sponsor)
+    else:
+        raise HTTPException(status_code=400, detail="Unable to update sponsor. Please check input.")
+    
+    
+    return({"message":"Sponsor Updated Successfully"})
+
+
+
+@app.delete("/sponsor/{sponsor_id}")
+def deleteSponsor(sponsor_id:int, session:Session=Depends(getSession)):
+    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
+    sponsor = session.exec(stmt).first()
+    
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor does not exist")
+    
+    session.delete(sponsor)
+    session.commit()
+    return({"message":"Sponsor deleted successfully"})

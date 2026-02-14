@@ -55,6 +55,10 @@ class Driver_Application(SQLModel, table=True):
     Submitted_At : datetime
     
 
+class UserReports(SQLModel, table=True):
+    __tablename__ = "UserReports"
+    
+
 
 # Payload classes for API Endpoints. They allow for information exchagne between frontend and backend
 
@@ -94,7 +98,14 @@ class SponsorCreate(BaseModel):
     phone: str
     
     
-    
+'''
 class CredsUpdate(BaseModel):
+    type:str
+    payload:str
+'''
+
+
+
+class AdminUpdate(BaseModel):
     type:str
     payload:str
