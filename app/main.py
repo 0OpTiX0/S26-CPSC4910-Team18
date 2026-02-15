@@ -341,12 +341,12 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
     session.commit()
     session.refresh(sponsor)
     return sponsor
+    
 
+# -------------------------
+# Profiles
+# -------------------------
 
-"""
-#Endpoint for displaying user profiles
-
-"""
 
 @app.get("/account/{user_id}")
 def viewProfile(user_id: int, session: Session = Depends(getSession)):
@@ -368,9 +368,74 @@ def viewProfile(user_id: int, session: Session = Depends(getSession)):
     }
 
 """
-#Endpoint for resetting forgotten password
+#Liam's version of updating info endpoint
+"""
+@app.patch("/account/{user_id}")
+def updateProfile(
+    user_id: int,
+    payload: ProfileUpdateRequest,
+    session: Session = Depends(getSession),
+):
+    user = session.exec(
+        select(User).where(User.UserID == user_id)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.name:
+        user.User_Name = payload.name
+
+    if payload.email:
+        # Prevent duplicate email
+        existing = session.exec(
+            select(User).where(User.User_Email == payload.email)
+        ).first()
+        if existing and existing.UserID != user_id:
+            raise HTTPException(status_code=409, detail="Email already in use")
+        user.User_Email = payload.email
+
+    if payload.phone:
+        existing = session.exec(
+            select(User).where(User.User_Phone_Num == payload.phone)
+        ).first()
+        if existing and existing.UserID != user_id:
+            raise HTTPException(status_code=409, detail="Phone already in use")
+        user.User_Phone_Num = payload.phone
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return {"message": "Profile updated successfully"}
 
 """
+#Liam's version of changing password endpoint
+"""
+@app.post("/account/{user_id}/change-password")
+def changePassword(
+    user_id: int,
+    payload: ChangePasswordRequest,
+    session: Session = Depends(getSession),
+):
+    user = session.exec(
+        select(User).where(User.UserID == user_id)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not verifyPassword(payload.current_password, user.User_Hashed_Pss):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    user.User_Hashed_Pss = encryptString(payload.new_password)
+
+    session.add(user)
+    session.commit()
+
+    return {"message": "Password changed successfully"}
+
+
 
 @app.post("/reset-password")
 def resetPassword(
@@ -395,7 +460,7 @@ def resetPassword(
     
 
 """
-#Endpoint for updating user information
+#Joseph's Endpoint for updating user information
 
 @app.patch("/account/{account_id}")
 def updateCreds(account_id: int, update:CredsUpdate, session:Session = Depends(getSession)):
