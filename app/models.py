@@ -104,6 +104,20 @@ class CredsUpdate(BaseModel):
     payload:str
 '''
 
+class ProfileUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    new_password: str
 
 
 class AdminUpdate(BaseModel):
