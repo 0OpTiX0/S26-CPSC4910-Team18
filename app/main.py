@@ -24,7 +24,10 @@ from models import (
     ApplicationRequest,
     AppDeleteReq,
     SponsorCreate,
-    AdminUpdate
+    AdminUpdate,
+    ProfileUpdateRequest,
+    ChangePasswordRequest,
+    ResetPasswordRequest,
 )
 
 app = FastAPI()

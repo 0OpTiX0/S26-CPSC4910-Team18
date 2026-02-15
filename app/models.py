@@ -55,8 +55,8 @@ class Driver_Application(SQLModel, table=True):
     Submitted_At : datetime
     
 
-class UserReports(SQLModel, table=True):
-    __tablename__ = "UserReports"
+# class UserReports(SQLModel, table=True):
+#    __tablename__ = "UserReports"
     
 
 

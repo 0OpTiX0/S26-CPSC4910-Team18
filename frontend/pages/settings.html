@@ -8,84 +8,121 @@
 </head>
 
 <body class="bg-slate-50 min-h-screen font-sans text-slate-900">
-  
+
+  <!-- Header -->
   <header class="w-full h-20 bg-white border-b border-slate-200 sticky top-0 z-50">
     <div class="max-w-6xl mx-auto px-6 h-full flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <a href="index.html" class="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow hover:bg-slate-800 transition">🚗</a>
+        <a href="index.html"
+           class="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow hover:bg-slate-800 transition">
+          🚗
+        </a>
         <h1 class="text-lg font-bold tracking-tight">Settings</h1>
       </div>
-      
+
       <nav class="flex items-center gap-4">
-        <a href="index.html" class="text-sm font-medium text-slate-600 hover:text-slate-900">Back to Dashboard</a>
-        <div id="profile-initials" class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold shadow-sm">
-          </div>
+        <a href="index.html" class="text-sm font-medium text-slate-600 hover:text-slate-900">
+          Back to Dashboard
+        </a>
+        <div id="profile-initials"
+             class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold shadow-sm">
+        </div>
       </nav>
     </div>
   </header>
 
+  <!-- Main -->
   <main class="max-w-4xl mx-auto px-6 py-12">
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-      
+
+      <!-- Sidebar -->
       <aside class="space-y-1">
-        <button class="w-full text-left px-4 py-2 rounded-lg bg-blue-50 text-blue-700 font-semibold text-sm">Profile Information</button>
-        <button class="w-full text-left px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 transition text-sm">Security & Password</button>
-        <button class="w-full text-left px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 transition text-sm">Notification Prefs</button>
+        <button class="w-full text-left px-4 py-2 rounded-lg bg-blue-50 text-blue-700 font-semibold text-sm">
+          Profile Information
+        </button>
       </aside>
 
+      <!-- Content -->
       <div class="md:col-span-2 space-y-6">
-        
-        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+
+        <!-- ================= PROFILE ================= -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
             <h2 class="font-bold text-slate-900">Profile</h2>
             <p class="text-xs text-slate-500">How you appear to sponsors and admins.</p>
           </div>
-          
-          <form id="settings-form" class="flex flex-col flex-grow">
-            <div class="p-6">
+
+          <form id="settings-form">
+            <div class="p-6 space-y-6">
+
+              <!-- VIEW MODE -->
               <div id="view-mode" class="space-y-6">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Full Name</label>
-                    <p id="view-name" class="text-sm font-medium text-slate-900 mt-1">—</p>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Full Name</label>
+                    <p id="view-name" class="text-sm font-medium mt-1">—</p>
                   </div>
                   <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email Address</label>
-                    <p id="view-email" class="text-sm font-medium text-slate-900 mt-1">—</p>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Email</label>
+                    <p id="view-email" class="text-sm font-medium mt-1">—</p>
                   </div>
                 </div>
+
                 <div>
-                  <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Bio / Driver Statement</label>
-                  <p id="view-bio" class="text-sm text-slate-600 mt-1 leading-relaxed">No bio provided.</p>
+                  <label class="text-[10px] font-bold text-slate-400 uppercase">Phone</label>
+                  <p id="view-phone" class="text-sm font-medium mt-1">—</p>
+                </div>
+
+                <div>
+                  <label class="text-[10px] font-bold text-slate-400 uppercase">Bio</label>
+                  <p id="view-bio" class="text-sm text-slate-600 mt-1">No bio provided.</p>
                 </div>
               </div>
 
-              <div id="edit-mode" class="space-y-4 hidden">
+              <!-- EDIT MODE -->
+              <div id="edit-mode" class="hidden space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-slate-700 uppercase">Full Name</label>
-                    <input type="text" id="set-name" class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+                  <div>
+                    <label class="text-[10px] font-bold uppercase">Full Name</label>
+                    <input id="set-name" type="text"
+                           class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 text-sm">
                   </div>
-                  <div class="space-y-1">
-                    <label class="text-[10px] font-bold text-slate-700 uppercase">Email (Locked)</label>
-                    <input type="email" id="set-email" class="w-full px-4 py-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed text-sm" readonly>
+                  <div>
+                    <label class="text-[10px] font-bold uppercase">Email (Locked)</label>
+                    <input id="set-email" type="email" readonly
+                           class="w-full px-4 py-2 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-sm">
                   </div>
                 </div>
-                <div class="space-y-1">
-                  <label class="text-[10px] font-bold text-slate-700 uppercase">Bio / Driver Statement</label>
-                  <textarea id="set-bio" rows="4" class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition text-sm"></textarea>
+
+                <div>
+                  <label class="text-[10px] font-bold uppercase">Phone</label>
+                  <input id="set-phone" type="tel"
+                         class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+
+                <div>
+                  <label class="text-[10px] font-bold uppercase">Bio</label>
+                  <textarea id="set-bio" rows="4"
+                            class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
                 </div>
               </div>
+
             </div>
 
-            <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex justify-end">
-              <button type="button" id="edit-toggle-btn" class="px-6 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold hover:bg-slate-50 transition shadow-sm">
+            <!-- ACTIONS -->
+            <div class="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex justify-end gap-3">
+              <button type="button" id="edit-toggle-btn"
+                      class="px-6 py-2 rounded-xl border bg-white text-xs font-bold">
                 Edit Profile
               </button>
 
               <div id="edit-actions" class="hidden flex gap-3">
-                <button type="button" id="cancel-btn" class="px-4 py-2 text-xs font-bold text-slate-500 hover:text-slate-800">Cancel</button>
-                <button type="submit" class="px-6 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-md hover:bg-blue-700 active:scale-95 transition">
+                <button type="button" id="cancel-btn"
+                        class="px-4 py-2 text-xs font-bold text-slate-500">
+                  Cancel
+                </button>
+                <button type="submit"
+                        class="px-6 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold">
                   Save Changes
                 </button>
               </div>
@@ -93,13 +130,59 @@
           </form>
         </section>
 
-        <section class="bg-white rounded-2xl border border-red-100 shadow-sm overflow-hidden">
+        <!-- ================= SECURITY ================= -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+            <h2 class="font-bold text-slate-900">Security & Password</h2>
+            <p class="text-xs text-slate-500">Change your account password.</p>
+          </div>
+
+          <form id="password-form" class="p-6 space-y-4">
+            <div>
+              <label class="text-[10px] font-bold uppercase">Current Password</label>
+              <input id="current-password" type="password"
+                     class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 text-sm">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="text-[10px] font-bold uppercase">New Password</label>
+                <input id="new-password" type="password"
+                       class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 text-sm">
+              </div>
+              <div>
+                <label class="text-[10px] font-bold uppercase">Confirm Password</label>
+                <input id="confirm-password" type="password"
+                       class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 text-sm">
+              </div>
+            </div>
+
+            <div id="pw-error" class="hidden text-sm text-red-600 font-semibold"></div>
+            <div id="pw-success" class="hidden text-sm text-green-600 font-semibold"></div>
+
+            <div class="flex justify-end gap-3">
+              <button type="button" id="pw-clear-btn"
+                      class="px-4 py-2 text-xs font-bold text-slate-500">
+                Clear
+              </button>
+              <button type="submit" id="pw-submit-btn"
+                      class="px-6 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold">
+                Change Password
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <!-- ================= DELETE ================= -->
+        <section class="bg-white rounded-2xl border border-red-100 shadow-sm">
           <div class="p-6">
-            <p class="text-sm font-bold text-slate-900">Delete Account</p>
-            <p class="text-xs text-slate-500 mt-1">Permanently remove your driver profile, history, and accumulated points. This action cannot be undone.</p>
-            
-            <div class="mt-6 pt-6 border-t border-red-50 flex justify-end">
-              <button id="delete-account-btn" class="px-6 py-2 rounded-xl bg-white border border-red-200 text-red-600 text-xs font-bold hover:bg-red-50 transition shadow-sm">
+            <p class="text-sm font-bold">Delete Account</p>
+            <p class="text-xs text-slate-500 mt-1">
+              Permanently remove your account from this device.
+            </p>
+            <div class="mt-6 flex justify-end">
+              <button id="delete-account-btn"
+                      class="px-6 py-2 rounded-xl border border-red-200 text-red-600 text-xs font-bold">
                 Delete Account
               </button>
             </div>
@@ -114,6 +197,7 @@
     © 2026 Good Driver Platform
   </footer>
 
+  <!-- Scripts -->
   <script src="../js/api.js"></script>
   <script src="../js/settings.js"></script>
 </body>
