@@ -343,8 +343,56 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
     return sponsor
 
 
+"""
+#Endpoint for displaying user profiles
 
+"""
 
+@app.get("/account/{user_id}")
+def viewProfile(user_id: int, session: Session = Depends(getSession)):
+    user = session.exec(
+        select(User).where(User.UserID == user_id)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "userId": user.UserID,
+        "name": user.User_Name,
+        "email": user.User_Email,
+        "phone": user.User_Phone_Num,
+        "role": user.User_Role,
+        "loginAttempts": user.User_Login_Attempts,
+        "lockoutTime": user.User_Lockout_Time,
+    }
+
+"""
+#Endpoint for resetting forgotten password
+
+"""
+
+@app.post("/reset-password")
+def resetPassword(
+    payload: ResetPasswordRequest,
+    session: Session = Depends(getSession),
+):
+    user = session.exec(
+        select(User).where(User.User_Email == payload.email)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.User_Hashed_Pss = encryptString(payload.new_password)
+    user.User_Login_Attempts = 0
+    user.User_Lockout_Time = None
+
+    session.add(user)
+    session.commit()
+
+    return {"message": "Password reset successfully"}
+    
 
 """
 #Endpoint for updating user information
