@@ -56,13 +56,13 @@ class Driver_Application(SQLModel, table=True):
     
 
 class UserReports(SQLModel, table=True):
-    __tablename__ = "Reports"
-    AuditID: Optional[int] = Field(default=None, primary_key=True)
-    UserID: int = Field(foreign_key="User.UserID")
-    Category: str
-    Issue_Type: str
-    Issue_Description: str
-    Created_At: datetime = Field(default_factory=datetime.utcnow)
+   __tablename__ = "Reports"
+   AuditID: Optional[int] = Field(unique=True, primary_key=True, default=None)
+   UserID: int = Field(foreign_key="User.UserID")
+   Category: str
+   Issue_Type: str
+   Issue_Description: str
+   Created_At: datetime
    
 
 
