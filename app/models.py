@@ -55,8 +55,17 @@ class Driver_Application(SQLModel, table=True):
     Submitted_At : datetime
     
 
-# class UserReports(SQLModel, table=True):
-#    __tablename__ = "UserReports"
+ class UserReports(SQLModel, table=True):
+   __tablename__ = "Reports"
+   AuditID: Optional[int] = Field(unique=True, primary_key=True, default=None)
+   UserID: int = Field(foreign_key="User.UserID")
+   Category: str
+   Issue_Type: str
+   Issue_Description: str
+   Created_At: datetime
+   
+
+
     
 
 
@@ -123,3 +132,11 @@ class ResetPasswordRequest(BaseModel):
 class AdminUpdate(BaseModel):
     type:str
     payload:str
+
+
+class NewReport(BaseModel):
+    userID:int
+    category:str
+    issue_type:str
+    issue_description:str
+    created_at:datetime

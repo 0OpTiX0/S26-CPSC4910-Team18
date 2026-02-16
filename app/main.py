@@ -28,6 +28,9 @@ from models import (
     ProfileUpdateRequest,
     ChangePasswordRequest,
     ResetPasswordRequest,
+    UserReports,
+    NewReport
+    
 )
 
 app = FastAPI()
@@ -550,3 +553,72 @@ def deleteSponsor(sponsor_id:int, session:Session=Depends(getSession)):
     session.delete(sponsor)
     session.commit()
     return({"message":"Sponsor deleted successfully"})
+
+
+@app.get("/report")
+def getReports(auditID: Optional[int] = Query(None),
+                user: Optional[int] = Query(None),
+                category: Optional[str] = Query(None),
+                session: Session = Depends(getSession)):
+    
+    stmt = select(UserReports)
+    
+    if auditID is not None:
+        stmt = stmt.where(UserReports.AuditID == auditID) 
+    if user is not None:
+        stmt = stmt.where(UserReports.UserID == user)
+    if category is not None:
+        stmt = stmt.where(UserReports.Category == category)
+        
+
+    reports = session.exec(stmt).all()
+    
+
+    if not reports:
+        raise HTTPException(status_code=404, detail="No Reports Found!")
+    
+    
+    return reports
+
+
+@app.post("/report", status_code=201)
+def createReport(payload:NewReport, session:Session = Depends(getSession)):
+    stmt = select(User).where(User.UserID == payload.userID)
+    user = session.exec(stmt).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User is not registered")
+    
+    report = UserReports(
+        UserID= payload.userID,
+        Category= payload.category,
+        Issue_Type=payload.issue_type,
+        Issue_Description=payload.issue_description,
+        Created_At= datetime.now(timezone.utc)
+        )
+    
+    
+    session.add(report)
+    session.commit()
+    session.refresh(report)
+    
+    return({"message": "Report filed successfully!"})
+
+
+
+@app.delete("/report/{report_id}")
+def resolveReport(report_id:int, session:Session = Depends(getSession)):
+    stmt = select(UserReports).where(UserReports.AuditID == report_id)
+    report = session.exec(stmt).first()
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found!")
+    
+    session.delete(report)
+    session.commit()
+        
+    return {"message":"Report resolved successfully"}
+
+
+#@app.get("/points/{user_ID}")
+#def getPointStatusReport
