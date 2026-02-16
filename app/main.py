@@ -29,7 +29,9 @@ from models import (
     ChangePasswordRequest,
     ResetPasswordRequest,
     UserReports,
-    NewReport
+    NewReport,
+    Point_Transaction,
+    NewPointChange
     
 )
 
@@ -620,5 +622,20 @@ def resolveReport(report_id:int, session:Session = Depends(getSession)):
     return {"message":"Report resolved successfully"}
 
 
-#@app.get("/points/{user_ID}")
-#def getPointStatusReport
+@app.get("/points/{driver_id}")
+def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
+    stmt = select(Driver_User).where(Driver_User.UserID == driver_id)
+    driver = session.exec(stmt).first()
+
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    
+    
+    stmt = select(Point_Transaction).where(Point_Transaction.Driver_User_ID == driver_id)
+    statusReport = session.exec(stmt).all()
+    
+    if not statusReport:
+        raise HTTPException(status_code=404, detail="No recent reports found for this driver")
+    
+    return statusReport
+    

@@ -63,9 +63,16 @@ class UserReports(SQLModel, table=True):
    Issue_Type: str
    Issue_Description: str
    Created_At: datetime
+
+
    
-
-
+class Point_Transaction(SQLModel, table=True):
+    __tablename__="Point_Transaction"
+    TransactionID: Optional[int] = Field(unique=True, primary_key=True, default=None)
+    Driver_User_ID : Optional[int] = Field(foreign_key="Driver_User.UserID")
+    Points_Change: str
+    Reason_For_Change:str
+    Created_At: datetime 
     
 
 
@@ -140,3 +147,9 @@ class NewReport(BaseModel):
     issue_type:str
     issue_description:str
     created_at:datetime
+    
+class NewPointChange(BaseModel):
+    driverID: int
+    points_change: str
+    reason:str
+    created_at: datetime
