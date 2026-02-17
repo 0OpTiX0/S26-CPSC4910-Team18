@@ -8,7 +8,7 @@
   const lockoutScreen = document.getElementById("lockout-screen");
   const lockoutTimer = document.getElementById("lockout-timer");
 
-  function showStatus(msg, isError=false) {
+  function showStatus(msg, isError = false) {
     if (!statusEl) return;
     statusEl.textContent = msg;
     statusEl.classList.remove("hidden");
@@ -54,25 +54,23 @@
         body: { email, password },
       });
 
-      // Store a tiny “session”
-      localStorage.setItem("gd_user", JSON.stringify({
-        userId: data.userId,
-        role: data.role,
-        email: data.email,
-        name: data.name,
-      }));
+      // Store session
+      localStorage.setItem(
+        "gd_user",
+        JSON.stringify({
+          userId: data.userId,
+          role: data.role,
+          email: data.email,
+          name: data.name,
+        })
+      );
 
       showStatus("Logged in! Redirecting…");
-      // For now, send everyone to the home page.
-      const role = (data.role || "").toLowerCase();
-      const landing = (role === "sponsor" || role === "sponsor_user")
-        ? "sponsor_applications.html"
-        : "index.html";
-      setTimeout(() => window.location.href = landing, 500);
+
+      setTimeout(() => (window.location.href = "index.html"), 400);
     } catch (err) {
       const payload = err?.data?.detail ?? err?.data ?? null;
 
-      // FastAPI may return {detail: {message, remaining_seconds}} for lockouts
       if (err.status === 403 && payload && typeof payload === "object" && payload.remaining_seconds != null) {
         showStatus(payload.message || "Account locked.", true);
         startLockoutCountdown(payload.remaining_seconds);
@@ -89,7 +87,4 @@
   }
 
   if (form) form.addEventListener("submit", onSubmit);
-
-  // Optional: if API_BASE not set, hint the user in console
-  if (!window.API?.API_BASE) console.warn("API base not set.");
 })();

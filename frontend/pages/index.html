@@ -102,10 +102,15 @@
 
   <script src="../js/api.js"></script>
   <script src="../js/navbar.js"></script>
-
+  
   <script>
-    function safeParse(s){ try { return s ? JSON.parse(s) : null; } catch { return null; } }
-    const user = safeParse(localStorage.getItem("gd_user")) || safeParse(sessionStorage.getItem("gd_user"));
+    function safeParse(s) {
+      try { return s ? JSON.parse(s) : null; } catch { return null; }
+    }
+
+    const user =
+      safeParse(localStorage.getItem("gd_user")) ||
+      safeParse(sessionStorage.getItem("gd_user"));
 
     const guestActions = document.getElementById("guest-actions");
     const userActions  = document.getElementById("user-actions");
@@ -114,21 +119,34 @@
     const heroSubtitle = document.getElementById("hero-subtitle");
 
     if (user) {
-      guestActions.classList.add("hidden");
-      userActions.classList.remove("hidden");
+      guestActions?.classList.add("hidden");
+      userActions?.classList.remove("hidden");
 
-      const name = user.name || user.full_name || "there";
+      const name = user.name || "there";
       welcomeLine.textContent = `Welcome back, ${name}.`;
 
       const role = (user.role || "").toLowerCase();
-      let href = "view-status.html";
-      if (role === "driver") href = "sponsor_catalog.html";
-      else if (role === "sponsor") href = "sponsor_catalog.html";
-      else if (role === "admin") href = "admin-management.html";
-      dashboardLink.href = href;
 
-      heroSubtitle.textContent = "Jump back in—manage your account, check status, and redeem points.";
+      // ✅ Role-aware primary button
+      if (role === "sponsor" || role === "sponsor_user") {
+        dashboardLink.href = "sponsor_applications.html";
+        dashboardLink.textContent = "Application View";
+      } else if (role === "driver") {
+        dashboardLink.href = "view-status.html";
+        dashboardLink.textContent = "Application Status";
+      } else if (role === "admin") {
+        dashboardLink.href = "admin-management.html";
+        dashboardLink.textContent = "Admin Dashboard";
+      } else {
+        dashboardLink.href = "view-status.html";
+        dashboardLink.textContent = "Go to Dashboard";
+      }
+
+      if (heroSubtitle) {
+        heroSubtitle.textContent = "Jump back in—manage your account, check status, and keep things moving.";
+      }
     }
   </script>
+
 </body>
 </html>

@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="output.css" />
 </head>
 <body class="bg-slate-50 min-h-screen font-sans text-slate-900">
-  
+
   <header class="w-full h-20 bg-white border-b border-slate-200 sticky top-0 z-50">
     <div class="max-w-6xl mx-auto px-6 h-full flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -21,82 +21,120 @@
   <main class="max-w-6xl mx-auto px-6 py-12">
     <div class="mb-8">
       <h2 class="text-3xl font-black text-slate-900">Platform Users</h2>
-      <p class="text-slate-600">Review and correct inconsistencies across all account types.</p>
+      <p class="text-slate-600">Admins can create accounts for drivers, sponsors, and other admins.</p>
     </div>
 
+    <!-- Create user -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+      <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between gap-4">
+        <div>
+          <h3 class="font-bold text-slate-900">Add New User</h3>
+          <p class="text-xs text-slate-500">
+            Creates a new account using <code class="px-1 py-0.5 bg-slate-100 rounded">POST /user</code>.
+          </p>
+        </div>
+        <button id="toggle-create"
+                class="px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold hover:bg-slate-50 transition shadow-sm">
+          Show / Hide
+        </button>
+      </div>
+
+      <div id="create-panel" class="p-6">
+        <form id="create-user-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label class="text-[10px] font-bold text-slate-700 uppercase">Full Name</label>
+            <input id="cu-name" type="text"
+                   class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                   placeholder="Jane Smith" required>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-[10px] font-bold text-slate-700 uppercase">Role</label>
+            <select id="cu-role"
+                    class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                    required>
+              <option value="driver">Driver</option>
+              <option value="sponsor">Sponsor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-[10px] font-bold text-slate-700 uppercase">Email</label>
+            <input id="cu-email" type="email"
+                   class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                   placeholder="user@email.com" required>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-[10px] font-bold text-slate-700 uppercase">Phone</label>
+            <input id="cu-phone" type="tel"
+                   class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                   placeholder="5555555555" required>
+          </div>
+
+          <div class="space-y-1 md:col-span-2">
+            <label class="text-[10px] font-bold text-slate-700 uppercase">Temporary Password</label>
+            <input id="cu-pass" type="password"
+                   class="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                   placeholder="Set a temporary password" minlength="6" required>
+            <p class="text-[11px] text-slate-500 mt-1">After creation, the user can change their password in Settings.</p>
+          </div>
+
+          <div class="md:col-span-2 flex items-center justify-between gap-3 pt-2">
+            <div id="cu-msg" class="hidden text-sm font-semibold"></div>
+            <div class="flex gap-3">
+              <button id="cu-clear" type="button"
+                      class="px-4 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold hover:bg-slate-50 transition">
+                Clear
+              </button>
+              <button id="cu-submit" type="submit"
+                class="px-6 py-2 rounded-xl bg-white text-slate-900 text-xs font-bold
+                      border-2 border-slate-300 shadow
+                      hover:bg-slate-50 transition">
+                Create User
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Filters / search -->
     <div class="flex flex-col md:flex-row gap-4 mb-6 justify-between items-start md:items-center">
       <div class="flex bg-slate-200 p-1 rounded-xl">
-        <button class="px-4 py-2 rounded-lg bg-white shadow-sm text-sm font-bold">All Users</button>
-        <button class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900">Drivers</button>
-        <button class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900">Sponsors</button>
-        <button class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900">Admins</button>
+        <button data-role="all" class="role-filter px-4 py-2 rounded-lg bg-white shadow-sm text-sm font-bold">All Users</button>
+        <button data-role="driver" class="role-filter px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900">Drivers</button>
+        <button data-role="sponsor" class="role-filter px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900">Sponsors</button>
+        <button data-role="admin" class="role-filter px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900">Admins</button>
       </div>
-      <div class="relative w-full md:w-64">
-        <input type="text" placeholder="Search by name/email..." class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+
+      <div class="relative w-full md:w-80">
+        <input id="user-search" type="text" placeholder="Search by name/email/phone..."
+               class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
         <span class="absolute left-3 top-2.5 text-slate-400">🔍</span>
       </div>
     </div>
 
+    <!-- User table -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <table class="w-full text-left border-collapse">
         <thead class="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
           <tr>
             <th class="px-6 py-4">User Details</th>
             <th class="px-6 py-4">Account Type</th>
-            <th class="px-6 py-4">Status</th>
-            <th class="px-6 py-4">Last Active</th>
-            <th class="px-6 py-4 text-right">Action</th>
+            <th class="px-6 py-4">Phone</th>
+            <th class="px-6 py-4 text-right">UserID</th>
           </tr>
         </thead>
-        <tbody class="text-sm divide-y divide-slate-100">
-          <tr>
-            <td class="px-6 py-4">
-              <div class="font-bold text-slate-900">John Driver</div>
-              <div class="text-xs text-slate-500">john.d@email.com</div>
-            </td>
-            <td class="px-6 py-4">
-              <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-md text-[10px] font-bold uppercase">Driver</span>
-            </td>
-            <td class="px-6 py-4 text-green-600 font-medium">Active</td>
-            <td class="px-6 py-4 text-slate-500">2 mins ago</td>
-            <td class="px-6 py-4 text-right">
-              <button class="text-indigo-600 font-bold hover:underline">Edit Info</button>
-            </td>
-          </tr>
-          <tr>
-            <td class="px-6 py-4">
-              <div class="font-bold text-slate-900">Globex Corp</div>
-              <div class="text-xs text-slate-500">contact@globex.com</div>
-            </td>
-            <td class="px-6 py-4">
-              <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-[10px] font-bold uppercase">Sponsor</span>
-            </td>
-            <td class="px-6 py-4 text-green-600 font-medium">Active</td>
-            <td class="px-6 py-4 text-slate-500">1 hour ago</td>
-            <td class="px-6 py-4 text-right">
-              <button class="text-indigo-600 font-bold hover:underline">Edit Info</button>
-            </td>
-          </tr>
-          <tr>
-            <td class="px-6 py-4">
-              <div class="font-bold text-slate-900">Super Admin</div>
-              <div class="text-xs text-slate-500">admin@gooddriver.com</div>
-            </td>
-            <td class="px-6 py-4">
-              <span class="px-2 py-1 bg-slate-900 text-white rounded-md text-[10px] font-bold uppercase">Admin</span>
-            </td>
-            <td class="px-6 py-4 text-green-600 font-medium">Active</td>
-            <td class="px-6 py-4 text-slate-500">Now</td>
-            <td class="px-6 py-4 text-right">
-              <button class="text-indigo-600 font-bold hover:underline">Edit Info</button>
-            </td>
-          </tr>
+        <tbody id="users-tbody" class="text-sm divide-y divide-slate-100">
+          <!-- filled by JS -->
         </tbody>
       </table>
     </div>
   </main>
 
   <script src="../js/api.js"></script>
-  <script src="../js/navbar.js"></script>
+  <script src="../js/admin-management.js"></script>
 </body>
 </html>
