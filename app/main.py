@@ -8,6 +8,7 @@ from mailTo import emailSponsor
 from typing import Optional, Literal
 import secrets
 from pydantic import BaseModel
+import re
 
 from db import getSession
 
@@ -50,6 +51,26 @@ app.add_middleware(
 def health():
     return {"ok": True}
 
+"""
+#Password Complexity Helper Function
+"""
+
+def validate_password_complexity(password: str):
+    if len(password) < 8:
+        raise HTTPException(status_code=400,detail="Password must be at least 8 characters long")
+
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one uppercase letter")
+
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one lowercase letter")
+
+    if not re.search(r"[0-9]", password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one number")
+
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        raise HTTPException(status_code=400, detail="Password must contain at least one special character")
+
 # -------------------------
 # USERS
 # -------------------------
@@ -85,6 +106,8 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         raise HTTPException(status_code=409, detail="Email already in use")
     if session.exec(select(User).where(User.User_Phone_Num == payload.phone)).first():
         raise HTTPException(status_code=409, detail="Phone already in use")
+    
+    validate_password_complexity(payload.pssw)
 
     user = User(
         User_Name=payload.name,
@@ -437,6 +460,11 @@ def changePassword(
     if not verifyPassword(payload.current_password, user.User_Hashed_Pss):
         raise HTTPException(status_code=401, detail="Current password is incorrect")
 
+    if verifyPassword(payload.new_password, user.User_Hashed_Pss):
+        raise HTTPException(status_code=409, detail="New password cannot be the same as the current password")
+
+    validate_password_complexity(payload.new_password)
+
     user.User_Hashed_Pss = encryptString(payload.new_password)
 
     session.add(user)
@@ -457,6 +485,11 @@ def resetPassword(
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+        
+    if verifyPassword(payload.new_password, user.User_Hashed_Pss):
+        raise HTTPException(status_code=409, detail="New password cannot be the same as the current password")
+
+    validate_password_complexity(payload.new_password)
 
     user.User_Hashed_Pss = encryptString(payload.new_password)
     user.User_Login_Attempts = 0
