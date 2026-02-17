@@ -663,3 +663,16 @@ def getMarket(market_id : int, session: Session = Depends(getSession)):
         raise HTTPException(status_code=404, detail="Driver not found")
     
     return market_item
+
+@app.delete("/market/{market_id}")
+def deleteMarket(market_id : int, session: Session = Depends(getSession)):
+    stmt = select(Market).where(Market.Market_ID == market_id)
+    market_item = session.exec(stmt).first()
+
+    if not market_item:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    
+    session.delete(market_item)
+    session.commit()
+
+    return({"message":"Market Item Deleted Successfully"})
