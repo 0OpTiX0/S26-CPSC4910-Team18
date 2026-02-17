@@ -153,3 +153,9 @@ class NewPointChange(BaseModel):
     points_change: str
     reason:str
     created_at: datetime
+
+# Market Payload
+
+class MarketCreate(BaseModel):
+    name : str
+    description : str

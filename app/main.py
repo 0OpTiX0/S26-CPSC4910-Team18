@@ -31,7 +31,8 @@ from models import (
     UserReports,
     NewReport,
     Point_Transaction,
-    NewPointChange
+    NewPointChange,
+    MarketCreate
     
 )
 
@@ -638,4 +639,17 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
         raise HTTPException(status_code=404, detail="No recent reports found for this driver")
     
     return statusReport
-    
+
+# Market Api Endpoints
+
+@app.post("/market")
+def createMarket(payload: MarketCreate, session: Session = Depends(getSession)):
+    market = Market(
+        Market_Name=payload.name,
+        Market_Description=payload.description
+    )
+
+    session.add(market)
+    session.commit()
+    session.refresh(market)
+    return market
