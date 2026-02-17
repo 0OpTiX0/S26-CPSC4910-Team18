@@ -653,3 +653,13 @@ def createMarket(payload: MarketCreate, session: Session = Depends(getSession)):
     session.commit()
     session.refresh(market)
     return market
+
+@app.get("/market/{market_id}")
+def getMarket(market_id : int, session: Session = Depends(getSession)):
+    stmt = select(Market).where(Market.Market_ID == market_id)
+    market_item = session.exec(stmt).first()
+
+    if not market_item:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    
+    return market_item
