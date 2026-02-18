@@ -708,7 +708,12 @@ def getCart(driver_id:int,
     return cart
 
 
-    
-    
-    
+#@app.post("/cart")
+#def createCart():
+ 
+#@app.patch("/cart/{cart_id}")
+#def updateOrderStatus(cart_id: int):
+
+#@app.delete("/cart/{cart_id}")
+#def deleteOrder(cart_id: int)   
     
