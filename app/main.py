@@ -12,30 +12,7 @@ import re
 
 from db import getSession
 
-from models import (
-    User,
-    Sponsor,
-    Market,
-    Driver_User,
-    Sponsor_User,
-    Driver_Application,
-    UserCreate,
-    LoginRequest,
-    DeleteRequest,
-    ApplicationRequest,
-    AppDeleteReq,
-    SponsorCreate,
-    AdminUpdate,
-    ProfileUpdateRequest,
-    ChangePasswordRequest,
-    ResetPasswordRequest,
-    UserReports,
-    NewReport,
-    Point_Transaction,
-    NewPointChange,
-    MarketCreate
-    
-)
+from models import *
 
 app = FastAPI()
 
@@ -709,3 +686,29 @@ def deleteMarket(market_id : int, session: Session = Depends(getSession)):
     session.commit()
 
     return({"message":"Market Item Deleted Successfully"})
+
+
+@app.get("/cart/{driver_id}")
+def getCart(driver_id:int, 
+            status: Optional[str] = Query(None),
+            session:Session = Depends(getSession)):
+    stmt = select(Driver_User).where(Driver_User.UserID == driver_id)
+    driver = session.exec(stmt).first()
+    
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver does not exist")
+    
+    stmt = select(Cart).where(Cart.DriverID == driver_id)
+    
+    if status is not None:
+        stmt = stmt.where(Cart.Status == status)
+    
+    cart = session.exec(stmt).all()
+    
+    return cart
+
+
+    
+    
+    
+    

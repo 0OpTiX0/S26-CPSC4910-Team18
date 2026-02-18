@@ -74,6 +74,38 @@ class Point_Transaction(SQLModel, table=True):
     Reason_For_Change:str
     Created_At: datetime 
     
+    
+class Cart(SQLModel, table=True):
+    __tablename__ ="Cart"
+    CartID : Optional[int] = Field(unique=True, primary_key=True)
+    DriverID: Optional[int] = Field(foreign_key="Driver_User.UserID")
+    Status: str
+    Created_At: datetime
+    Checked_Out_At: datetime
+
+class Product(SQLModel, table=True):
+    __tablename__ = "Product"
+    ProductID: Optional[int] = Field(unique=True, primary_key=True)
+    MarketID: Optional[int] = Field(foreign_key="Market.Market_ID")
+    ProductName: str
+    ProductDescription: str
+    ProductPrice: int
+    ProductQty:int
+    #We're going to use paths to pull images from storage instad of storing bits.
+    ProductImage: str
+    LastRefreshed: datetime
+    
+class CartItem(SQLModel, table=True):
+    __tablename__ = "Cart_Item"
+    Cart_Item_ID: Optional[int] = Field(unique=True, primary_key=True)
+    CartID: Optional[int] = Field(foreign_key="Cart.CartID")
+    ProdID: Optional[int] = Field(foreign_key="Product.ProductID")
+    Prod_Qty: int
+    Prod_Price: int
+    
+
+
+    
 
 
 # Payload classes for API Endpoints. They allow for information exchagne between frontend and backend
