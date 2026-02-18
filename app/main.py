@@ -708,8 +708,18 @@ def getCart(driver_id:int,
     return cart
 
 
-#@app.post("/cart")
-#def createCart():
+@app.post("/cart/{user_id}")
+def createCart(user_id:int, session: Session = Depends(getSession)):
+    stmt = select(User).where(User.UserID == user_id)
+    
+    user = session.exec(stmt).first()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User Not Found!")
+    
+    
+    
+    
  
 #@app.patch("/cart/{cart_id}")
 #def updateOrderStatus(cart_id: int):
