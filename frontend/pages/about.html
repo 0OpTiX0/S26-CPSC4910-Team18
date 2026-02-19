@@ -31,25 +31,23 @@
             const hostElement = document.getElementById('env-host');
 
             try {
-                // Change 'localhost:8000' to your AWS/Production URL when deployed
                 const response = await fetch('http://localhost:8000/about/db-status');
                 const data = await response.json();
 
                 if (response.ok) {
-                    statusElement.innerText = "CONNECTED ✅";
+                    statusElement.innerText = "CONNECTED";
                     statusElement.className = "status-ok";
                     hostElement.innerText = data.endpoint || "Cloud Hosted";
                 } else {
                     throw new Error(data.detail || "Connection Failed");
                 }
             } catch (error) {
-                statusElement.innerText = "DISCONNECTED ❌ (" + error.message + ")";
+                statusElement.innerText = "DISCONNECTED (" + error.message + ")";
                 statusElement.className = "status-error";
                 hostElement.innerText = "Unknown / Offline";
             }
         }
 
-        // Initialize check on page load
         checkStatus();
     </script>
 </body>
