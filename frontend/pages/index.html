@@ -8,145 +8,139 @@
 </head>
 
 <body class="bg-slate-100 min-h-screen font-sans text-slate-900">
-  <header class="w-full h-20 bg-white border-b border-slate-200 relative z-40">
+
+  <!-- HEADER -->
+  <header class="w-full h-20 bg-white border-b border-slate-200 shadow-sm">
     <div class="max-w-6xl mx-auto px-6 h-full flex items-center justify-between">
 
-      <div class="flex items-center">
-        <div class="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow">
+      <!-- Logo -->
+      <a href="index.html" class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow-lg hover:bg-blue-600 transition">
           🚗
         </div>
-      </div>
+        <span class="font-bold text-xl tracking-tight text-slate-900">
+          Good Driver
+        </span>
+      </a>
 
-      <nav class="flex items-center gap-3">
+      <!-- Navbar -->
+      <nav class="flex items-center gap-12 bg-red-500">
+        <a href="store_catalog.html" class="text-sm font-semibold text-slate-600 hover:text-blue-600 transition">
+          Store
+        </a>
+        <a href="sponsor_catalog.html" class="text-sm font-semibold text-slate-600 hover:text-blue-600 transition">
+          Sponsors
+        </a>
+        <a href="view-status.html" class="text-sm font-semibold text-slate-600 hover:text-blue-600 transition">
+          Application Status
+        </a>
+        <a href="about.html" class="text-sm font-semibold text-slate-600 hover:text-blue-600 transition">
+          About
+        </a>
+      </nav>
+
+      <!-- Auth / Profile -->
+      <div class="flex items-center gap-4">
+        
         <div id="nav-guest" class="flex gap-3">
-          <a href="signup.html" class="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition text-sm font-semibold">Sign Up</a>
-          <a href="login.html" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 transition text-white text-sm font-semibold shadow">Login</a>
+          <a href="login.html" class="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-900 transition">
+            Login
+          </a>
+          <a href="signup.html" class="px-5 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold shadow-md hover:bg-blue-700 transition-all active:scale-95">
+            Sign Up
+          </a>
         </div>
 
         <div id="nav-user" class="hidden flex items-center">
           <div class="relative">
-            <button id="profile-btn" class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold shadow-md focus:outline-none hover:bg-blue-700 transition"></button>
+            <button id="profile-btn"
+              class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold shadow-md hover:ring-4 hover:ring-blue-100 transition-all focus:outline-none border-2 border-white">
+            </button>
 
-            <div id="profile-dropdown" class="fixed right-6 md:right-[calc((100vw-72rem)/2+1.5rem)] top-20 w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl py-2 hidden z-[999]">
-              <div class="px-4 py-2 border-b border-slate-100">
+            <div id="profile-dropdown"
+              class="absolute right-0 mt-4 w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl py-2 hidden z-[999]">
+
+              <div class="px-4 py-3 border-b border-slate-100">
                 <p id="user-name" class="text-sm font-bold text-slate-900"></p>
                 <p id="user-email" class="text-xs text-slate-500 truncate"></p>
               </div>
 
-              <div id="points-section" class="role-specific role-driver px-4 py-3 bg-blue-50/50 border-b border-slate-100 hidden">
-                <div class="flex items-center justify-between mb-1">
-                  <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Current Points</span>
-                  <span class="text-[10px] font-medium text-slate-400">Good Driver®</span>
-                </div>
-                <div class="flex items-baseline gap-1">
-                  <span id="user-points" class="text-2xl font-black text-slate-900">0</span>
-                  <span class="text-xs font-bold text-slate-500">pts</span>
-                </div>
-                <div class="w-full h-1.5 bg-slate-200 rounded-full mt-2 overflow-hidden">
-                  <div id="points-progress" class="h-full bg-blue-600 rounded-full transition-all duration-1000" style="width:0%"></div>
+              <div id="points-section"
+                class="role-specific role-driver px-4 py-4 bg-slate-50 border-b border-slate-100 hidden">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  Rewards Points
+                </span>
+                <div class="flex items-baseline gap-1 mt-1">
+                  <span id="user-points" class="text-3xl font-black text-blue-600">0</span>
+                  <span class="text-xs font-bold text-slate-400">pts</span>
                 </div>
               </div>
 
-              <div class="role-specific role-admin py-1 border-t border-slate-100 hidden">
-                <a href="admin-reports.html" class="block px-4 py-2 text-sm text-indigo-600 font-bold hover:bg-indigo-50 transition">UX Performance Reports</a>
-                <a href="admin-point-change.html" class="block px-4 py-2 text-sm text-indigo-600 font-bold hover:bg-indigo-50 transition">Point Change Audit</a>
-                <a href="admin-management.html" class="block px-4 py-2 text-sm text-indigo-600 font-bold hover:bg-indigo-50 transition">User Management Console</a>
+              <div class="py-2">
+                <a href="settings.html"
+                  class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition">
+                  Account Settings
+                </a>
+                <button id="logout-btn"
+                  class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition">
+                  Log Out
+                </button>
               </div>
 
-              <div class="py-1">
-                <a href="view-status.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Application Status</a>
-                <a href="sponsor_catalog.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Sponsor Catalog</a>
-                <a href="settings.html" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition">Settings</a>
-              </div>
-
-              <hr class="my-1 border-slate-100">
-
-              <button id="logout-btn" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition">
-                Logout
-              </button>
             </div>
           </div>
         </div>
 
-      </nav>
+      </div>
     </div>
   </header>
 
+  <!-- MAIN -->
   <main class="flex items-center justify-center px-6" style="min-height: calc(100vh - 80px);">
     <div class="max-w-2xl text-center">
-      <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight text-slate-900">Good Driver</h1>
-      <p id="hero-subtitle" class="mt-4 text-lg md:text-xl text-slate-600 leading-relaxed">
-        A simple rewards platform that encourages safer driving through points, redemption, and easy program management.
+      <div
+        class="inline-block px-4 py-1.5 mb-6 text-xs font-bold tracking-widest text-blue-600 uppercase bg-blue-50 rounded-full">
+        Driving Excellence Rewards
+      </div>
+
+      <h1 class="text-5xl md:text-7xl font-black tracking-tight text-slate-900 leading-tight">
+        Better Driving,<br><span class="text-blue-600">Bigger Rewards.</span>
+      </h1>
+
+      <p id="hero-subtitle"
+        class="mt-6 text-lg text-slate-500 leading-relaxed max-w-lg mx-auto">
+        Join the safer community. Earn points for every safe mile and redeem them for exclusive offers from our sponsors.
       </p>
 
-      <div id="guest-actions" class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-        <a href="login.html" class="px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 transition text-white font-bold shadow">Get Started</a>
-        <a href="signup.html" class="px-7 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition font-bold">Create Account</a>
-      </div>
-
-      <div id="user-actions" class="hidden mt-8 flex flex-col items-center gap-3">
-        <p id="welcome-line" class="text-slate-700 font-semibold"></p>
-        <a id="dashboard-link" href="view-status.html" class="px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 transition text-white font-bold shadow">
-          Go to Dashboard
+      <div id="guest-actions"
+        class="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="signup.html"
+          class="px-8 py-4 rounded-2xl bg-slate-900 text-white font-bold shadow-xl hover:bg-slate-800 hover:-translate-y-1 transition-all duration-300">
+          Get Started Now
         </a>
-        <div class="flex gap-3">
-          <a href="settings.html" class="px-5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition font-bold">Manage Profile</a>
-          <a href="sponsor_catalog.html" class="px-5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 transition font-bold">Browse Catalog</a>
-        </div>
+        <a href="about.html"
+          class="px-8 py-4 rounded-2xl border-2 border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 transition-all">
+          Learn More
+        </a>
       </div>
 
+      <div id="user-actions"
+        class="hidden mt-10 flex flex-col items-center gap-4">
+        <p id="welcome-line" class="text-slate-900 font-bold text-xl"></p>
+      </div>
     </div>
   </main>
 
-  <footer class="py-8 text-center text-sm text-slate-500">© 2026 Good Driver</footer>
+  <!-- FOOTER -->
+  <footer class="py-12 text-center">
+    <div class="h-px w-24 bg-slate-200 mx-auto mb-8"></div>
+    <p class="text-sm text-slate-400 font-medium">
+      © 2026 Good Driver Platform • Safe Driving Initiative
+    </p>
+  </footer>
 
   <script src="../js/api.js"></script>
   <script src="../js/navbar.js"></script>
-  
-  <script>
-    function safeParse(s) {
-      try { return s ? JSON.parse(s) : null; } catch { return null; }
-    }
-
-    const user =
-      safeParse(localStorage.getItem("gd_user")) ||
-      safeParse(sessionStorage.getItem("gd_user"));
-
-    const guestActions = document.getElementById("guest-actions");
-    const userActions  = document.getElementById("user-actions");
-    const welcomeLine  = document.getElementById("welcome-line");
-    const dashboardLink = document.getElementById("dashboard-link");
-    const heroSubtitle = document.getElementById("hero-subtitle");
-
-    if (user) {
-      guestActions?.classList.add("hidden");
-      userActions?.classList.remove("hidden");
-
-      const name = user.name || "there";
-      welcomeLine.textContent = `Welcome back, ${name}.`;
-
-      const role = (user.role || "").toLowerCase();
-
-      // ✅ Role-aware primary button
-      if (role === "sponsor" || role === "sponsor_user") {
-        dashboardLink.href = "sponsor_applications.html";
-        dashboardLink.textContent = "Application View";
-      } else if (role === "driver") {
-        dashboardLink.href = "view-status.html";
-        dashboardLink.textContent = "Application Status";
-      } else if (role === "admin") {
-        dashboardLink.href = "admin-management.html";
-        dashboardLink.textContent = "Admin Dashboard";
-      } else {
-        dashboardLink.href = "view-status.html";
-        dashboardLink.textContent = "Go to Dashboard";
-      }
-
-      if (heroSubtitle) {
-        heroSubtitle.textContent = "Jump back in—manage your account, check status, and keep things moving.";
-      }
-    }
-  </script>
 
 </body>
 </html>

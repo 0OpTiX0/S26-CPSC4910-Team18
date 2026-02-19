@@ -8,6 +8,7 @@ from mailTo import emailSponsor
 from typing import Optional, Literal
 import secrets
 from pydantic import BaseModel
+import os
 import re
 
 from db import getSession
@@ -27,6 +28,27 @@ app.add_middleware(
 @app.get("/health")
 def health():
     return {"ok": True}
+
+@app.get("/about/db-status")
+def db_status(session: Session = Depends(getSession)):
+    db_host = os.getenv("DB_HOST", "Unknown")
+    try:
+        session.exec(select(func.count()).select_from(User)).first()
+        
+        provider = "Local/Unknown"
+        if db_host and "rds.amazonaws.com" in db_host:
+            provider = "AWS RDS"
+        elif db_host and "supabase" in db_host:
+            provider = "Supabase"
+            
+        return {
+            "status": "Connected ✅",
+            "endpoint": db_host,
+            "provider": provider,
+            "database_type": "MySQL"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to connect to {db_host}: {str(e)}")
 
 """
 #Password Complexity Helper Function
