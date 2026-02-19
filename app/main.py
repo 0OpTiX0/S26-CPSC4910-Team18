@@ -164,6 +164,11 @@ def deleteUser(payload: DeleteRequest, session: Session = Depends(getSession)):
     session.commit()
     return {"message": "User deleted successfully"}
 
+@app.get("/user/login_attempts")
+def getLoginAttempts(user_email : str, session: Session = Depends(getSession)):
+    stmt = session.exec(select(User.User_Login_Attempts).where(User.User_Email == user_email)).first()
+    return stmt
+
 @app.post("/user/driver_user")
 def createDriverUser(payload: DriverUserCreate, session: Session = Depends(getSession)):
     sponsor = session.exec(
