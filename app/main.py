@@ -164,6 +164,33 @@ def deleteUser(payload: DeleteRequest, session: Session = Depends(getSession)):
     session.commit()
     return {"message": "User deleted successfully"}
 
+@app.post("/user/driver_user")
+def createDriverUser(payload: DriverUserCreate, session: Session = Depends(getSession)):
+    sponsor = session.exec(
+            select(Sponsor.Sponsor_ID).where(Sponsor.Sponsor_Email == payload.sponsor_email)
+        ).first()
+    
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor does not exist")
+    
+    driver = session.exec(
+        select(User.UserID).where(User.User_Email == payload.email)
+    ).first()
+
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver does not exist")
+    
+    driver_user = Driver_User(
+        UserID=driver,
+        Sponsor_ID=sponsor
+    )
+
+    session.add(driver_user)
+    session.commit()
+    session.refresh(driver_user)
+
+    return driver_user
+
 # -------------------------
 # LOGIN (User table)
 # -------------------------
