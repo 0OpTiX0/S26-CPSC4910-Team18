@@ -279,6 +279,7 @@ def getSponsors(
 def dropDriver(
     sponsor_email : str,
     user_email : str,
+    drop_reason : Optional[str] = Query(None),
     session : Session = Depends(getSession)
 ):
     u_stmt = session.exec(select(User.UserID).where(User.User_Email == user_email)).first()
@@ -299,7 +300,10 @@ def dropDriver(
     session.delete(stmt)
     session.commit()
 
-    return {"message": "Driver Removed Successfully"}
+    if drop_reason:
+        return {"message": drop_reason}
+    else:
+        return {"message": "Driver Dropped from Program Successfully"}
 
 # -------------------------
 # APPLICATIONS
