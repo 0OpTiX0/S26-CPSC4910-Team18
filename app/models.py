@@ -191,3 +191,12 @@ class NewPointChange(BaseModel):
 class MarketCreate(BaseModel):
     name : str
     description : str
+
+# Driver User Create
+# --- I am unsure of how to tell what sponsor the driver user is assigned.
+# --- I guess it's for the application. The function that I write can be turned into a helper function if need be.
+
+class DriverUserCreate(BaseModel):
+    email : Optional[str] = None
+    phone_num : Optional[str] = None
+    sponsor_email : str
