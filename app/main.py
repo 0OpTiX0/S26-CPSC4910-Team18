@@ -275,6 +275,32 @@ def getSponsors(
 
     return session.exec(stmt).all()
 
+@app.delete("/sponsors/drop_driver")
+def dropDriver(
+    sponsor_email : str,
+    user_email : str,
+    session : Session = Depends(getSession)
+):
+    u_stmt = session.exec(select(User.UserID).where(User.User_Email == user_email)).first()
+
+    if not u_stmt:
+        raise HTTPException(status_code=404, detail="User does not exist")
+    
+    s_stmt = session.exec(select(Sponsor.Sponsor_ID).where(Sponsor.Sponsor_Email == sponsor_email)).first()
+
+    if not s_stmt:
+        raise HTTPException(status_code=404, detail="Sponsor does not exist")
+
+    stmt = session.exec(select(Driver_User).where(Driver_User.UserID == u_stmt, Driver_User.Sponsor_ID == s_stmt)).first()
+
+    if not stmt:
+        raise HTTPException(status_code=404, detail="Driver does not exist")
+    
+    session.delete(stmt)
+    session.commit()
+
+    return {"message": "Driver Removed Successfully"}
+
 # -------------------------
 # APPLICATIONS
 # -------------------------
