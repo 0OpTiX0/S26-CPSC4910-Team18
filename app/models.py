@@ -198,5 +198,4 @@ class MarketCreate(BaseModel):
 
 class DriverUserCreate(BaseModel):
     email : Optional[str] = None
-    phone_num : Optional[str] = None
     sponsor_email : str
