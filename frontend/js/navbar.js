@@ -90,6 +90,36 @@ document.addEventListener("DOMContentLoaded", () => {
     sessionStorage.removeItem("gd_user");
     window.location.href = "index.html";
   });
+
+  // frontend/js/navbar.js
+
+  async function updatePointsDisplay(userId) {
+    try {
+      const response = await fetch(`${CONFIG.API_BASE_URL}/points/${userId}`);
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const points = data.total_points || 0;
+
+      const dropdownPointsEl = document.getElementById("dropdown-points");
+      if (dropdownPointsEl) {
+          dropdownPointsEl.textContent = points;
+      }
+
+      const storeBalanceEl = document.getElementById("display-points");
+      if (storeBalanceEl) {
+          storeBalanceEl.textContent = points;
+      }
+    } catch (err) {
+      console.error("Failed to fetch points:", err);
+    }
+  }
+
+  if (storedUser && storedUser.role === "driver") {
+      // Note: ensure your storedUser object has the numeric 'id' field
+      updatePointsDisplay(storedUser.id); 
+  }
+
 });
 
 function applyRolePermissions(role) {
