@@ -37,6 +37,9 @@ class Driver_User(SQLModel, table = True):
     UserID : Optional[int] = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
     Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
     User_Points : int = Field(default=0)
+    Is_Suspended: bool = Field(default=False)
+    Suspension_Reason: Optional[str] = None
+    Suspension_Until: Optional[datetime] = None
 
 class Sponsor_User(SQLModel, table=True):
     __tablename__ = "Sponsor_User"
