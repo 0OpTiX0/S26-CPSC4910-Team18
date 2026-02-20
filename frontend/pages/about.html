@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
       <script src="/config.js"></script>
+      <script src = "../js/api.js"></script>
 <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About - System Status</title>
@@ -32,20 +33,21 @@
             const hostElement = document.getElementById('env-host');
 
             try {
-                const response = await fetch('http://localhost:8000/about/db-status');
-                const data = await response.json();
+            // Use the API helper so this goes to the backend, not the frontend.
+            const data = await window.API.request("/about/db-status");
 
-                if (response.ok) {
-                    statusElement.innerText = "CONNECTED";
-                    statusElement.className = "status-ok";
-                    hostElement.innerText = data.endpoint || "Cloud Hosted";
-                } else {
-                    throw new Error(data.detail || "Connection Failed");
-                }
-            } catch (error) {
-                statusElement.innerText = "DISCONNECTED (" + error.message + ")";
-                statusElement.className = "status-error";
-                hostElement.innerText = "Unknown / Offline";
+            statusElement.innerText = "CONNECTED";
+            statusElement.className = "status-ok";
+            hostElement.innerText = data.endpoint || window.API.API_BASE || "Cloud Hosted";
+            } catch (err) {
+            const msg =
+                (err && err.data && (err.data.detail || err.data.error)) ||
+                err.message ||
+                "Failed to fetch";
+
+            statusElement.innerText = "DISCONNECTED (" + msg + ")";
+            statusElement.className = "status-error";
+            hostElement.innerText = "Unknown / Offline";
             }
         }
 
