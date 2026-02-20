@@ -80,6 +80,8 @@
           email: email.value.trim(),
           phone: normalizePhone(phone.value),
           pssw: password.value,
+          logattp: 0,
+          lockout: "1970-01-01T00:00:00.000Z",
         },
       });
 

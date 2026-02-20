@@ -4,10 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "npx @tailwindcss/cli -i ./src/input.css -o ./pages/output.css --watch",
-    "build": "NODE_OPTIONS='--input-type=module' npx @tailwindcss/cli -i ./src/input.css -o ./pages/output.css --minify"
+    "build": "NODE_OPTIONS='--input-type=module' npx @tailwindcss/cli -i ./src/input.css -o ./pages/output.css --minify",
+    "start": "node server.js"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.0.0",
     "tailwindcss": "^4.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
   }
 }
