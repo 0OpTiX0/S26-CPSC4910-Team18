@@ -310,6 +310,45 @@ def dropDriver(
     else:
         return {"message": "Driver Dropped from Program Successfully"}
 
+
+@app.patch("/sponsors/suspend_driver")
+def suspendDriver(
+    sponsor_email: str,
+    driver_email: str,
+    reason: str,
+    duration_minutes: int,
+    session: Session = Depends(getSession)
+):
+    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == sponsor_email)).first()
+
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+
+    driver_user_id = session.exec(select(User.UserID).where(User.User_Email == driver_email)).first()
+
+    if not driver_user_id:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    driver = session.exec(
+        select(Driver_User).where(Driver_User.UserID == driver_user_id,Driver_User.Sponsor_ID == sponsor.Sponsor_ID)).first()
+
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not linked to this sponsor")
+
+    driver.Is_Suspended = True
+    driver.Suspension_Reason = reason
+    driver.Suspension_Until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+
+    session.add(driver)
+    session.commit()
+    session.refresh(driver)
+
+    return {
+        "message": "Driver suspended successfully",
+        "until": driver.Suspension_Until,
+        "reason": driver.Suspension_Reason
+    }
+    
 # -------------------------
 # APPLICATIONS
 # -------------------------
