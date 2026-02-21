@@ -71,7 +71,7 @@ def validate_password_complexity(password: str):
         raise HTTPException(status_code=400, detail="Password must contain at least one special character")
 
 # -------------------------
-# USERS
+# USER MANAGEMENT
 # -------------------------
 
 @app.get("/user")
@@ -197,7 +197,7 @@ def createDriverUser(payload: DriverUserCreate, session: Session = Depends(getSe
     return driver_user
 
 # -------------------------
-# LOGIN (User table)
+# AUTHENTICATION
 # -------------------------
 
 LOCKOUT_THRESHOLD = 3
@@ -252,7 +252,7 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
 
 
 # -------------------------
-# SPONSOR LOOKUP / LISTING
+# SPONSOR & DRIVER MANAGEMENT
 # -------------------------
 
 
@@ -350,7 +350,7 @@ def suspendDriver(
     }
     
 # -------------------------
-# APPLICATIONS
+# APPLICATION WORKFLOW
 # -------------------------
 
 @app.post("/application")
@@ -476,7 +476,7 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
     
 
 # -------------------------
-# Profiles
+# ACCOUNT & PROFILE
 # -------------------------
 
 
@@ -648,7 +648,11 @@ def deleteSponsor(sponsor_id:int, session:Session=Depends(getSession)):
     session.commit()
     return({"message":"Sponsor deleted successfully"})
 
-#Gets all user report
+# -------------------------
+# REPORTS
+# -------------------------
+
+# Gets all user reports
 @app.get("/report")
 def getReports(auditID: Optional[int] = Query(None),
                 user: Optional[int] = Query(None),
@@ -735,7 +739,11 @@ def resolveReport(report_id:int, session:Session = Depends(getSession)):
         
     return {"message":"Report resolved successfully"}
 
-#Gets all transaction reports for a single driver
+# -------------------------
+# POINTS & TRANSACTIONS
+# -------------------------
+
+# Gets all transaction reports for a single driver
 @app.get("/transaction/{driver_id}")
 def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
     stmt = select(Driver_User).where(Driver_User.UserID == driver_id)
@@ -813,7 +821,11 @@ def deleteTransactionLog(transaction_id: int, session: Session=Depends(getSessio
     
     return {"message":"Transaction deleted successfully"}
 
-# Market Api Endpoints
+# -------------------------
+# MARKET & CART
+# -------------------------
+
+# Market API Endpoints
 
 @app.post("/market")
 def createMarket(payload: MarketCreate, session: Session = Depends(getSession)):
@@ -880,8 +892,15 @@ def createCart(user_id:int, session: Session = Depends(getSession)):
     if not user:
         raise HTTPException(status_code=404, detail="User Not Found!")
     
+
+#Driver Notification endpoints will go here
+
+
     
-    
+
+
+
+
     
  
 #@app.patch("/cart/{cart_id}")
@@ -890,3 +909,4 @@ def createCart(user_id:int, session: Session = Depends(getSession)):
 #@app.delete("/cart/{cart_id}")
 #def deleteOrder(cart_id: int)   
     
+
