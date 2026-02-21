@@ -66,6 +66,7 @@ class UserReports(SQLModel, table=True):
    Issue_Type: str
    Issue_Description: str
    Created_At: datetime
+   Status: str
 
 
    
@@ -148,12 +149,7 @@ class SponsorCreate(BaseModel):
     email: str
     phone: str
     
-    
-'''
-class CredsUpdate(BaseModel):
-    type:str
-    payload:str
-'''
+
 
 class ProfileUpdateRequest(BaseModel):
     name: Optional[str] = None
@@ -182,10 +178,11 @@ class NewReport(BaseModel):
     issue_type:str
     issue_description:str
     created_at:datetime
+    status:str
     
 class NewPointChange(BaseModel):
     driverID: int
-    points_change: str
+    points_change: int
     reason:str
     created_at: datetime
 

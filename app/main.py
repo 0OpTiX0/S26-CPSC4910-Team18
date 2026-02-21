@@ -541,9 +541,7 @@ def updateProfile(
 
     return {"message": "Profile updated successfully"}
 
-"""
-#Liam's version of changing password endpoint
-"""
+
 @app.post("/account/{user_id}/change-password")
 def changePassword(
     user_id: int,
@@ -601,46 +599,6 @@ def resetPassword(
     return {"message": "Password reset successfully"}
     
 
-"""
-#Joseph's Endpoint for updating user information
-
-@app.patch("/account/{account_id}")
-def updateCreds(account_id: int, update:CredsUpdate, session:Session = Depends(getSession)):
-    stmt = select(User).where(User.UserID == account_id)
-    user = session.exec(stmt).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User Not Found!")
-    
-    
-    
-
-    if(update.type.lower() == "password"):
-        user.User_Hashed_Pss =  encryptString(update.payload)
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-    elif(update.type.lower() == "email"):
-        user.User_Email = update.payload
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-    elif(update.type.lower() == "username"):
-        user.User_Name = update.payload
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-    elif(update.type.lower() == "phone number"):
-        user.User_Phone_Num = update.payload
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-    else:
-        raise HTTPException(status_code=400, detail="Could not update account. Check input")
-        
-        
-    return({"message": "User updated successfully"})
-    """
-    
 
 @app.patch("/admin/{sponsor_id}")
 def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(getSession)):
@@ -690,11 +648,12 @@ def deleteSponsor(sponsor_id:int, session:Session=Depends(getSession)):
     session.commit()
     return({"message":"Sponsor deleted successfully"})
 
-
+#Gets all user report
 @app.get("/report")
 def getReports(auditID: Optional[int] = Query(None),
                 user: Optional[int] = Query(None),
                 category: Optional[str] = Query(None),
+                status: Optional[str] = Query(None),
                 session: Session = Depends(getSession)):
     
     stmt = select(UserReports)
@@ -705,6 +664,8 @@ def getReports(auditID: Optional[int] = Query(None),
         stmt = stmt.where(UserReports.UserID == user)
     if category is not None:
         stmt = stmt.where(UserReports.Category == category)
+    if status is not None:
+        stmt = stmt.where(UserReports.Status == category)
         
 
     reports = session.exec(stmt).all()
@@ -716,7 +677,7 @@ def getReports(auditID: Optional[int] = Query(None),
     
     return reports
 
-
+#Creates a user bug report
 @app.post("/report", status_code=201)
 def createReport(payload:NewReport, session:Session = Depends(getSession)):
     stmt = select(User).where(User.UserID == payload.userID)
@@ -730,7 +691,8 @@ def createReport(payload:NewReport, session:Session = Depends(getSession)):
         Category= payload.category,
         Issue_Type=payload.issue_type,
         Issue_Description=payload.issue_description,
-        Created_At= datetime.now(timezone.utc)
+        Created_At= datetime.now(timezone.utc),
+        Status= payload.status
         )
     
     
@@ -740,8 +702,26 @@ def createReport(payload:NewReport, session:Session = Depends(getSession)):
     
     return({"message": "Report filed successfully!"})
 
+#Updates the status of a report
+@app.patch("/report/{report_id}")
+def updateReportStatus(report_id:int, status_update:str, session: Session=Depends(getSession)):
+    stmt = select(UserReports).where(UserReports.AuditID == report_id)
+    report = session.exec(stmt).first()
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="Report does not exist or has been resolved.")
+    
+    report.Status = status_update
+    
+    session.add(report)
+    session.commit()
+    session.refresh(report)
+    
+    return {"message": f"Status for report: {report.AuditID} updated successfully"}
+    
 
-
+    
+#Resolves a report via deletion
 @app.delete("/report/{report_id}")
 def resolveReport(report_id:int, session:Session = Depends(getSession)):
     stmt = select(UserReports).where(UserReports.AuditID == report_id)
@@ -755,8 +735,8 @@ def resolveReport(report_id:int, session:Session = Depends(getSession)):
         
     return {"message":"Report resolved successfully"}
 
-
-@app.get("/points/{driver_id}")
+#Gets all transaction reports for a single driver
+@app.get("/transaction/{driver_id}")
 def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
     stmt = select(Driver_User).where(Driver_User.UserID == driver_id)
     driver = session.exec(stmt).first()
@@ -772,6 +752,66 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
         raise HTTPException(status_code=404, detail="No recent reports found for this driver")
     
     return statusReport
+
+
+#Gets a drivers user points to redeem
+@app.get("/points/{user_id}")
+def getDriverPoints(user_id: int ,session:Session=Depends(getSession)):
+    stmt = select(Driver_User).where(Driver_User.UserID == user_id)
+    
+    driver = session.exec(stmt).first()
+    
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver does not exist!")
+    
+    return driver.User_Points
+    
+#Adds or subtracts points while also creating a transaction report
+@app.patch("/points")
+def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
+    stmt = select(Driver_User).where(Driver_User.UserID == payload.driverID)
+    
+    driver = session.exec(stmt).first()
+    
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found!")
+    
+   
+    pointChange = payload.points_change        
+    driver.User_Points += pointChange
+    
+    newTransaction = Point_Transaction(
+        Driver_User_ID= payload.driverID,
+        Points_Change= str(payload.points_change),
+        Reason_For_Change= payload.reason,
+        Created_At= datetime.now(timezone.utc)
+    )
+    
+    
+    session.add(driver)
+    session.add(newTransaction)
+    session.commit()
+    session.refresh(driver)
+    session.refresh(newTransaction)
+    
+    
+    return({"message": "Transaction successful and log recorded."})
+
+#Deletes a transaction log
+@app.delete("/points/{transaction_id}")
+def deleteTransactionLog(transaction_id: int, session: Session=Depends(getSession)):
+    stmt = select(Point_Transaction).where(Point_Transaction.TransactionID == transaction_id)
+    
+    transaction = session.exec(stmt).first()
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction does not exist")
+    
+    
+    session.delete(transaction)
+    session.commit()
+    
+    return {"message":"Transaction deleted successfully"}
 
 # Market Api Endpoints
 
