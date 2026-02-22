@@ -1,57 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-      <script src="/config.js"></script>
-      <script src = "../js/api.js"></script>
-<meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About - System Status</title>
-    <style>
-        body { font-family: sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: auto; }
-        .status-card { border: 1px solid #ccc; border-radius: 8px; padding: 20px; background-color: #f9f9f9; }
-        .status-ok { color: #28a745; font-weight: bold; }
-        .status-error { color: #dc3545; font-weight: bold; }
-        .loader { color: #666; font-style: italic; }
-        code { background: #eee; padding: 2px 5px; border-radius: 4px; }
-    </style>
+  <script src="/config.js"></script>
+  <script src="../js/api.js"></script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About - System Status</title>
+
+  <!-- Tailwind build (use the same path as your other pages) -->
+  <link rel="stylesheet" href="output.css" />
 </head>
-<body>
 
-    <h1>About Our Application</h1>
-    <p>This application is built using <strong>FastAPI</strong> and <strong>SQLModel</strong>.</p>
-
-    <div class="status-card">
-        <h3>Backend & Database Connectivity</h3>
-        <p>Target Environment: <strong id="env-host">Fetching...</strong></p>
-        <p>Database Status: <span id="db-status" class="loader">Checking Connection...</span></p>
-        <p>Provider Details: <span id="provider-info">MySQL (via PyMySQL)</span></p>
+<body class="bg-slate-100 min-h-screen font-sans text-slate-900">
+  <!-- Header (matches your other pages’ vibe) -->
+  <header class="w-full h-20 bg-white border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-6 h-full flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow">🚗</div>
+        <div class="font-semibold">Good Driver</div>
+      </div>
+      <nav class="flex items-center gap-6 text-sm">
+        <a href="index.html" class="text-slate-700 hover:text-slate-900">Home</a>
+        <a href="about.html" class="text-slate-900 font-semibold">About</a>
+      </nav>
     </div>
+  </header>
 
-    <script>
-        async function checkStatus() {
-            const statusElement = document.getElementById('db-status');
-            const hostElement = document.getElementById('env-host');
+  <main class="max-w-6xl mx-auto px-6 py-10">
+    <h1 class="text-4xl font-extrabold tracking-tight">About Our Application</h1>
+    <p class="mt-2 text-slate-600 max-w-3xl">
+      A DB-backed system that tracks driver safety, rewards good driving behavior, and allows sponsors to manage driver participation.
+    </p>
 
-            try {
-            // Use the API helper so this goes to the backend, not the frontend.
-            const data = await window.API.request("/about/db-status");
+    <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- App Info (HARDCODED) -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Application Information</h2>
+          <span class="inline-flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-slate-100 text-slate-700">
+          </span>
+        </div>
 
-            statusElement.innerText = "CONNECTED";
-            statusElement.className = "status-ok";
-            hostElement.innerText = data.endpoint || window.API.API_BASE || "Cloud Hosted";
-            } catch (err) {
-            const msg =
-                (err && err.data && (err.data.detail || err.data.error)) ||
-                err.message ||
-                "Failed to fetch";
+        <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <div class="flex items-center gap-3 col-span-2 sm:col-span-1">
+                <dt class="text-slate-600 whitespace-nowrap">Team #</dt>
+                <dd class="font-medium">18</dd>
+            </div>
 
-            statusElement.innerText = "DISCONNECTED (" + msg + ")";
-            statusElement.className = "status-error";
-            hostElement.innerText = "Unknown / Offline";
-            }
+            <div class="flex items-center gap-3 col-span-2 sm:col-span-1">
+                <dt class="text-slate-600 whitespace-nowrap">Sprint #</dt>
+                <dd class="font-medium">4</dd>
+            </div>
+
+            <div class="flex items-center gap-3 col-span-2 sm:col-span-1">
+                <dt class="text-slate-600 whitespace-nowrap">Release Date:</dt>
+                <dd class="font-medium">May 5, 2026</dd>
+            </div>
+
+            <div class="flex items-center gap-3 col-span-2 sm:col-span-1">
+                <dt class="text-slate-600 whitespace-nowrap">Product Name:</dt>
+                <dd class="font-medium">Good Driver Incentive Program</dd>
+            </div>
+        
+
+          <div class="flex items-start gap-3 sm:col-span-1">
+            <dt class="text-slate-600">Description:</dt>
+            <dd class="font-medium">
+              A platform that rewards safe driving with redeemable points, managed by sponsoring organizations to promote responsible driving behavior.
+            </dd>
+          </div>
+        </dl>
+
+        </p>
+      </section>
+
+      <!-- Backend & DB Connectivity -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <h2 class="text-lg font-semibold">Backend &amp; Database Connectivity</h2>
+
+        <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+          <div class="flex items-center justify-between gap-3 col-span-2">
+            <dt class="text-slate-600">Target Environment</dt>
+            <dd id="env-host" class="font-medium">Fetching…</dd>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 col-span-2">
+            <dt class="text-slate-600">Database Status</dt>
+            <dd>
+              <span id="dbStatusBadge" class="inline-flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-slate-100 text-slate-700">
+                <span id="dbDot" class="h-2 w-2 rounded-full bg-slate-400"></span>
+                <span id="dbStatusText">Checking…</span>
+              </span>
+            </dd>
+          </div>
+
+          <div class="flex items-center justify-between gap-3 col-span-2">
+            <dt class="text-slate-600">Provider Details</dt>
+            <dd class="font-medium">MySQL (via PyMySQL)</dd>
+          </div>
+        </dl>
+
+        <p id="dbError" class="mt-4 text-sm text-red-600 hidden"></p>
+        </p>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    function setDbBadge(connected) {
+        const dot = document.getElementById("dbDot");
+        const text = document.getElementById("dbStatusText");
+        const badge = document.getElementById("dbStatusBadge");
+
+        if (!dot || !text || !badge) return;
+
+        if (connected) {
+            dot.className = "h-2.5 w-2.5 rounded-full bg-green-500";
+            badge.className =
+            "inline-flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-green-50 text-green-800";
+            text.textContent = "🟢 CONNECTED";
+        } else {
+            dot.className = "h-2.5 w-2.5 rounded-full bg-red-500";
+            badge.className =
+            "inline-flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-red-50 text-red-800";
+            text.textContent = "🔴 DISCONNECTED";
+        }
+    }
+
+    async function checkStatus() {
+      const hostElement = document.getElementById("env-host");
+      const errorEl = document.getElementById("dbError");
+
+      try {
+        const data = await window.API.request("/about/db-status");
+
+        setDbBadge(true);
+
+        if (hostElement) {
+          hostElement.textContent =
+            data.endpoint ||
+            window.CONFIG?.API_BASE_URL ||
+            "Cloud Hosted";
+        }
+      } catch (err) {
+        setDbBadge(false);
+
+        if (hostElement) hostElement.textContent = "Unknown / Offline";
+
+        const msg =
+          err?.data?.detail ||
+          err?.message ||
+          "API request failed (check API_BASE and CORS).";
+
+        if (errorEl) {
+          errorEl.textContent = msg;
+          errorEl.classList.remove("hidden");
         }
 
-        checkStatus();
-    </script>
+        console.error("DB status error:", msg);
+      }
+    }
+
+
+    document.addEventListener("DOMContentLoaded", checkStatus);
+  </script>
 </body>
 </html>

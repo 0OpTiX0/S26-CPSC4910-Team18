@@ -1,8 +1,13 @@
-// frontend/config.js
-const CONFIG = {
-    API_BASE_URL: window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-        ? "http://127.0.0.1:8000" // Your local FastAPI
-        : "http://team18-env.eba-wdekfmiy.us-east-1.elasticbeanstalk.com" // Your EB Backend
-};
+// config.js (at project web root)
+(function () {
+  const isLocal =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
 
-console.log("Running with API URL:", CONFIG.API_BASE_URL);
+  // IMPORTANT: must be accessible globally
+  window.__API_BASE__ = isLocal
+    ? "http://127.0.0.1:8000"
+    : "http://team18-env.eba-wdekfmiy.us-east-1.elasticbeanstalk.com";
+
+  console.log("Running with API URL:", window.__API_BASE__);
+})();
