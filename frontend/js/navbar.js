@@ -116,8 +116,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (storedUser && storedUser.role === "driver") {
-      // Note: ensure your storedUser object has the numeric 'id' field
-      updatePointsDisplay(storedUser.id); 
+      const checkConfigAndLoad = () => {
+        if (typeof CONFIG !== 'undefined') {
+            updatePointsDisplay(storedUser.id);
+        } else {
+            setTimeout(checkConfigAndLoad, 100);
+        }
+    };
+    checkConfigAndLoad();
   }
 
 });

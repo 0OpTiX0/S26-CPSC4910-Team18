@@ -1,11 +1,17 @@
 // frontend/js/apply-to-sponsor.js
+
 document.addEventListener("DOMContentLoaded", () => {
-    const applyButtons = document.querySelectorAll(".apply-btn");
-    
+    // 1. Load the sponsors from the database immediately on page load
+    loadSponsors();
+
     const user = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user"));
 
-    applyButtons.forEach(button => {
-        button.addEventListener("click", async (e) => {
+    // 2. Handle the "Apply" button clicks using Event Delegation
+    document.addEventListener("click", async (e) => {
+        // Check if the clicked element is an Apply button
+        if (e.target && e.target.classList.contains("apply-btn")) {
+            const button = e.target;
+            
             if (!user) {
                 alert("Please log in first.");
                 window.location.href = "login.html";
@@ -16,13 +22,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            const sponsorId = e.target.getAttribute("data-sponsor-id");
-            
+            const sponsorId = button.getAttribute("data-sponsor-id");
             const originalText = button.textContent;
+            
             button.textContent = "Sending...";
             button.disabled = true;
 
             try {
+                // Adjust endpoint name if your teammate named it differently (e.g., /application/apply)
                 const response = await fetch(`${CONFIG.API_BASE_URL}/application`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -49,6 +56,70 @@ document.addEventListener("DOMContentLoaded", () => {
                 button.textContent = originalText;
                 button.disabled = false;
             }
-        });
+        }
     });
 });
+
+/**
+ * Fetches sponsors from the backend and populates the catalog grid
+ */
+async function loadSponsors() {
+    const container = document.getElementById("sponsor-container");
+    if (!container) return;
+
+    if (typeof CONFIG === 'undefined') {
+        console.log("Waiting for CONFIG...");
+        setTimeout(loadSponsors, 100);
+        return;
+    }
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/sponsors`);
+        if (!response.ok) throw new Error("Could not load sponsors from database");
+
+        const sponsors = await response.json();
+        
+        // Clear the loading message or hardcoded cards
+        container.innerHTML = "";
+
+        if (sponsors.length === 0) {
+            container.innerHTML = `<p class="col-span-2 text-center text-slate-500 py-10">No active sponsor programs found.</p>`;
+            return;
+        }
+
+        sponsors.forEach(sponsor => {
+            // Generate the HTML for each sponsor card dynamically
+            const cardHTML = `
+                <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all group">
+                    <div class="h-32 bg-slate-900 p-6 flex items-end relative">
+                        <div class="w-16 h-16 bg-white rounded-2xl shadow-lg flex items-center justify-center translate-y-8 border border-slate-100">
+                            <span class="text-2xl font-black text-slate-900">${sponsor.Sponsor_Name.charAt(0)}</span>
+                        </div>
+                    </div>
+                    <div class="p-6 pt-12">
+                        <h3 class="text-xl font-bold text-slate-900">${sponsor.Sponsor_Name}</h3>
+                        <p class="text-sm text-slate-500 mt-1">${sponsor.Sponsor_Description || "Join our program to earn exclusive rewards."}</p>
+                        
+                        <div class="mt-6 space-y-3">
+                            <div class="flex items-center gap-2 text-sm text-emerald-600 font-semibold">
+                                <span class="bg-emerald-100 p-1 rounded-md">✓</span>
+                                Official Sponsor
+                            </div>
+                        </div>
+
+                        <button 
+                            data-sponsor-id="${sponsor.Sponsor_ID}" 
+                            class="apply-btn w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-all active:scale-95">
+                            Apply to Sponsor
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML("beforeend", cardHTML);
+        });
+
+    } catch (error) {
+        console.error("Fetch error:", error);
+        container.innerHTML = `<p class="col-span-2 text-center text-red-500 py-10">Unable to load sponsors. Please check your connection to ${CONFIG.API_BASE_URL}</p>`;
+    }
+}

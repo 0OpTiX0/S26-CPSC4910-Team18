@@ -44,5 +44,13 @@
     return data;
   }
 
-  window.API = { API_BASE, request, guessSameOrigin };
+  window.API = {
+    request: async function(endpoint, options = {}) {
+        // Use the global CONFIG variable we set up
+        const baseUrl = window.CONFIG ? window.CONFIG.API_BASE_URL : "";
+        const response = await fetch(`${baseUrl}${endpoint}`, options);
+        if (!response.ok) throw new Error("API Request Failed");
+        return await response.json();
+    }
+  }
 })();
