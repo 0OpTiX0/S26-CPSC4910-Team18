@@ -295,8 +295,14 @@
   .right-6 {
     right: calc(var(--spacing) * 6);
   }
+  .-bottom-10 {
+    bottom: calc(var(--spacing) * -10);
+  }
   .left-3 {
     left: calc(var(--spacing) * 3);
+  }
+  .left-6 {
+    left: calc(var(--spacing) * 6);
   }
   .z-10 {
     z-index: 10;
@@ -454,6 +460,9 @@
   .h-20 {
     height: calc(var(--spacing) * 20);
   }
+  .h-24 {
+    height: calc(var(--spacing) * 24);
+  }
   .h-32 {
     height: calc(var(--spacing) * 32);
   }
@@ -495,6 +504,9 @@
   }
   .w-16 {
     width: calc(var(--spacing) * 16);
+  }
+  .w-20 {
+    width: calc(var(--spacing) * 20);
   }
   .w-24 {
     width: calc(var(--spacing) * 24);
@@ -553,6 +565,9 @@
   }
   .animate-spin {
     animation: var(--animate-spin);
+  }
+  .cursor-default {
+    cursor: default;
   }
   .cursor-not-allowed {
     cursor: not-allowed;
@@ -1359,6 +1374,14 @@
     &:hover {
       @media (hover: hover) {
         --tw-shadow: 0 4px 6px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 2px 4px -2px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
+        box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+      }
+    }
+  }
+  .hover\:shadow-xl {
+    &:hover {
+      @media (hover: hover) {
+        --tw-shadow: 0 20px 25px -5px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 8px 10px -6px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
         box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
       }
     }
