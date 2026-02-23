@@ -1,24 +1,21 @@
 // frontend/js/api.js
 // Lightweight API helper for the static frontend pages.
 (() => {
-  const fromStorage = () => {
-    try { return localStorage.getItem("API_BASE") || ""; } catch { return ""; }
-  };
+  /**
+   * Helper to perform API requests using the global CONFIG object.
+   */
+  async function request(path, options = {}) {
+    const { method = "GET", body, headers = {} } = options;
 
-  const guessSameOrigin = () => {
-    // If the API is reverse-proxied behind the same origin, set API_BASE to window.location.origin.
-    // Otherwise keep localhost as a safe dev default.
-    return window.location.origin || "http://localhost:8000";
-  };
+    let configBase = "http://127.0.0.1:8000";
+    if (window.CONFIG && window.CONFIG.API_BASE_URL) {
+      configBase = window.CONFIG.API_BASE_URL;
+    }
 
-  const API_BASE = (
-    window.__API_BASE__ ||
-    fromStorage() ||
-    (guessSameOrigin() + "/api")
-  ).replace(/\/+$/, "");
-
-  async function request(path, { method = "GET", body, headers = {} } = {}) {
-    const url = `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+    const API_BASE = configBase.replace(/\/+$/, "");
+    
+    const cleanPath = path.startsWith("/") ? path : "/" + path;
+    const url = `${API_BASE}${cleanPath}`;
 
     const opts = {
       method,
@@ -28,29 +25,36 @@
       },
     };
 
-    if (body !== undefined) opts.body = JSON.stringify(body);
-
-    const res = await fetch(url, opts);
-    const text = await res.text();
-    let data = null;
-    try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-
-    if (!res.ok) {
-      const err = new Error("API request failed");
-      err.status = res.status;
-      err.data = data;
-      throw err;
+    if (body !== undefined && body !== null) {
+      opts.body = JSON.stringify(body);
     }
-    return data;
+
+    try {
+      const res = await fetch(url, opts);
+      
+      const text = await res.text();
+      let data = null;
+      try { 
+        data = text ? JSON.parse(text) : null; 
+      } catch (parseError) { 
+        data = text; 
+      }
+
+      if (!res.ok) {
+        const err = new Error("API request failed");
+        err.status = res.status;
+        err.data = data; 
+        throw err;
+      }
+
+      return data;
+    } catch (error) {
+      console.error(`API Error on ${path}:`, error);
+      throw error;
+    }
   }
 
   window.API = {
-    request: async function(endpoint, options = {}) {
-        // Use the global CONFIG variable we set up
-        const baseUrl = window.CONFIG ? window.CONFIG.API_BASE_URL : "";
-        const response = await fetch(`${baseUrl}${endpoint}`, options);
-        if (!response.ok) throw new Error("API Request Failed");
-        return await response.json();
-    }
-  }
+    request: request
+  };
 })();
