@@ -23,6 +23,7 @@ class Market(SQLModel, table=True):
     Market_ID : Optional[int] = Field(unique=True, primary_key=True, default=None)
     Market_Name : str
     Market_Description : str
+    Market_Sponsor : Optional[int] = Field(foreign_key="Sponsor.Sponsor_ID", default=None)
 
 class Sponsor(SQLModel, table=True):
     __tablename__ = "Sponsor"

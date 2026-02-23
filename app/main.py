@@ -814,7 +814,7 @@ def deleteTransactionLog(transaction_id: int, session: Session=Depends(getSessio
     
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction does not exist")
-    
+
     
     session.delete(transaction)
     session.commit()
@@ -828,16 +828,34 @@ def deleteTransactionLog(transaction_id: int, session: Session=Depends(getSessio
 # Market API Endpoints
 
 @app.post("/market")
-def createMarket(payload: MarketCreate, session: Session = Depends(getSession)):
-    market = Market(
-        Market_Name=payload.name,
-        Market_Description=payload.description
-    )
+def createMarket(payload: MarketCreate, sponsor_email : Optional[str] = Query(None), session: Session = Depends(getSession)):
+    if sponsor_email:
+        stmt = session.exec(select(Sponsor.Sponsor_ID).where(Sponsor.Sponsor_Email == sponsor_email)).first()
 
-    session.add(market)
-    session.commit()
-    session.refresh(market)
-    return market
+        if not stmt:
+            raise HTTPException(status_code=404, detail="Sponsor does not exist")
+
+        market = Market(
+            Market_Name=payload.name,
+            Market_Description=payload.description,
+            Market_Sponsor=stmt
+        )
+
+        session.add(market)
+        session.commit()
+        session.refresh(market)
+        return market
+    
+    else:
+        market = Market(
+            Market_Name=payload.name,
+            Market_Description=payload.description
+        )
+
+        session.add(market)
+        session.commit()
+        session.refresh(market)
+        return market
 
 @app.get("/market/{market_id}")
 def getMarket(market_id : int, session: Session = Depends(getSession)):
