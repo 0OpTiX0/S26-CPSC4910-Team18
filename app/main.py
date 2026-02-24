@@ -367,6 +367,36 @@ def getPendingApplications(
     ).all()
 
     return applications
+
+@app.get("/sponsors/{sponsor_email}/drivers")
+def getPartneredDrivers(
+    sponsor_email: str,
+    session: Session = Depends(getSession)
+):
+    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == sponsor_email)).first()
+
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+
+    results = session.exec(
+        select(User, Driver_User)
+        .join(Driver_User, User.UserID == Driver_User.UserID)
+        .where(Driver_User.Sponsor_ID == sponsor.Sponsor_ID)
+    ).all()
+
+    drivers = []
+    for user, driver in results:
+        drivers.append({
+            "UserID": user.UserID,
+            "Email": user.User_Email,
+            "Points": driver.User_Points,
+            "Is_Suspended": driver.Is_Suspended,
+            "Suspension_Reason": driver.Suspension_Reason,
+            "Suspension_Until": driver.Suspension_Until
+        })
+
+    return drivers
+    
 # -------------------------
 # APPLICATION WORKFLOW
 # -------------------------
