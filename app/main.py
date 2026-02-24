@@ -91,7 +91,7 @@ def getUsers(
     if userPhoneNum:
         stmt = stmt.where(func.lower(User.User_Phone_Num).like(f"%{userPhoneNum.lower()}%"))
     if userRole:
-        stmt = stmt.where(User.User_Role == userRole)
+        stmt = stmt.where(func.lower(User.User_Role).like(f"%{userRole.lower()}%"))
 
     users = session.exec(stmt).all()
     return users
@@ -166,6 +166,11 @@ def deleteUser(payload: DeleteRequest, session: Session = Depends(getSession)):
 
 @app.get("/user/login_attempts")
 def getLoginAttempts(user_email : str, session: Session = Depends(getSession)):
+    stmt = select(User).where(User.User_Email == user_email)
+    user = session.exec(stmt).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User Does not exist!")
+    
     stmt = session.exec(select(User.User_Login_Attempts).where(User.User_Email == user_email)).first()
     return stmt
 

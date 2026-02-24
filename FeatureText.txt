@@ -1,0 +1,13 @@
+                                    ============================================================
+
+                                                   Team 18 API Endpoint Test Log
+                                                Endpoints tested by: Joseph laudati
+                                    ============================================================    
+
+
+
+/about/db-status ------- Works
+/user (GET) ----- Works
+/user(POST) ----- Works
+/user(DELETE) ---- Works
+/user/login_attempts ---- Works
