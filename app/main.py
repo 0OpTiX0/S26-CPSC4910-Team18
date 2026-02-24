@@ -280,6 +280,11 @@ def getSponsors(
 
     return session.exec(stmt).all()
 
+@app.get("/sponsors/get_driver_login_attempts")
+def driverLoginAttempts(driver_email : str, session : Session = Depends(getSession)):
+    log_in_attempts = getLoginAttempts(driver_email, session)
+    return log_in_attempts
+
 @app.delete("/sponsors/drop_driver")
 def dropDriver(
     sponsor_email : str,
