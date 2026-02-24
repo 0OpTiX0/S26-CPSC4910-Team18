@@ -348,7 +348,25 @@ def suspendDriver(
         "until": driver.Suspension_Until,
         "reason": driver.Suspension_Reason
     }
-    
+
+@app.get("/sponsors/{sponsor_email}/applications/pending", response_model=list[Driver_Application])
+def getPendingApplications(
+    sponsor_email: str,
+    session: Session = Depends(getSession)
+):
+    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == sponsor_email)).first()
+
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+
+    applications = session.exec(
+        select(Driver_Application).where(
+            Driver_Application.Sponsor_ID == sponsor.Sponsor_ID,
+            Driver_Application.Applicant_Status == "Pending"
+        )
+    ).all()
+
+    return applications
 # -------------------------
 # APPLICATION WORKFLOW
 # -------------------------
