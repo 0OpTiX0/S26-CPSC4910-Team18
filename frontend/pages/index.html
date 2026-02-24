@@ -22,6 +22,7 @@
         <a href="store_catalog.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">Store</a>
         <a href="sponsor_catalog.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">Sponsors</a>
         <a href="view-status.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">Status</a>
+        <a id="nav-suspend" href="suspend-drivers.html"class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">Suspend Drivers</a>
         <a href="about.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">About</a>
       </nav>
 
@@ -106,6 +107,7 @@
     const userActions  = document.getElementById("user-actions");
     const welcomeLine  = document.getElementById("welcome-line");
     const dashboardLink = document.getElementById("dashboard-link");
+    const navSuspend    = document.getElementById("nav-suspend");
 
     if (user) {
       guestActions?.classList.add("hidden");
@@ -116,9 +118,15 @@
       if (role.includes("sponsor")) {
         dashboardLink.href = "sponsor_applications.html";
         dashboardLink.textContent = "Application View";
+        navSuspend?.classList.remove("hidden");
       } else if (role === "admin") {
         dashboardLink.href = "admin-management.html";
         dashboardLink.textContent = "Admin Dashboard";
+      } else if (role == "driver")
+      {
+        dashboardLink.href = "view-status.html";
+        dashboardLink.textContent = "My Status";
+        navSuspend?.classList.add("hidden");
       }
     }
   </script>
