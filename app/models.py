@@ -70,7 +70,9 @@ class UserReports(SQLModel, table=True):
    Status: str
 
 
-   
+# ---This is a reminder note for whoever will fix this---
+# There has been changes to the table in the database
+# and will need to be added to this class
 class Point_Transaction(SQLModel, table=True):
     __tablename__="Point_Transaction"
     TransactionID: Optional[int] = Field(unique=True, primary_key=True, default=None)
