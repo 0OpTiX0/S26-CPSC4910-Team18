@@ -23,20 +23,27 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             const sponsorId = button.getAttribute("data-sponsor-id");
+            const sponsorEmail = button.getAttribute("data-sponsor-email");
             const originalText = button.textContent;
             
             button.textContent = "Sending...";
             button.disabled = true;
 
             try {
-                // Adjust endpoint name if your teammate named it differently (e.g., /application/apply)
+                const phone =
+                    user.phone ||
+                    user.User_Phone_Num ||
+                    user.user_phone_num ||
+                    user.User_Phone ||
+                    "";
+
                 const response = await fetch(`${CONFIG.API_BASE_URL}/application`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        Sponsor_ID: parseInt(sponsorId),
-                        Applicant_Email: user.email,
-                        Applicant_Status: "Pending"
+                        appEmail: user.email,
+                        sponsEmail: sponsorEmail,
+                        appPhoneNum: phone
                     })
                 });
 
@@ -108,7 +115,8 @@ async function loadSponsors() {
                         </div>
 
                         <button 
-                            data-sponsor-id="${sponsor.Sponsor_ID}" 
+                            data-sponsor-id="${sponsor.Sponsor_ID}"
+                            data-sponsor-email="${sponsor.Sponsor_Email || ""}"
                             class="apply-btn w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-2xl hover:bg-blue-700 transition-all active:scale-95">
                             Apply to Sponsor
                         </button>

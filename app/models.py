@@ -124,6 +124,7 @@ class CartItem(SQLModel, table=True):
 class UserCreate(BaseModel):
     name: str
     role: str
+    sponsor_join: Optional[str] = None #Sponsor users can join an existing Sponsor by email or name
     email: str
     phone: str
     pssw: str

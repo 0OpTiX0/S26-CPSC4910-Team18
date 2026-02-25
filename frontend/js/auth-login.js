@@ -62,6 +62,7 @@
           role: data.role,
           email: data.email,
           name: data.name,
+          phone: data.phone
         })
       );
 

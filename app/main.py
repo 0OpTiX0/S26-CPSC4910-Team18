@@ -122,22 +122,43 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
 
 
     if (payload.role or "").lower() == "sponsor":
-        sponsor = session.exec(
-            select(Sponsor).where(Sponsor.Sponsor_Email == payload.email)
-        ).first()
+        # If sponsor_join is provided, link this sponsor-user to an EXISTING Sponsor row
+        join_key = (getattr(payload, "sponsor_join", None) or "").strip()
+        sponsor = None
 
+        if join_key:
+            # Try exact email match first
+            sponsor = session.exec(
+                select(Sponsor).where(func.lower(Sponsor.Sponsor_Email) == join_key.lower())
+            ).first()
+
+            # Then try name match (partial)
+            if not sponsor:
+                sponsor = session.exec(
+                    select(Sponsor).where(func.lower(Sponsor.Sponsor_Name).like(f"%{join_key.lower()}%"))
+                ).first()
+
+            if not sponsor:
+                raise HTTPException(status_code=404, detail="Sponsor to join was not found. Ask an admin to create it, or use the correct sponsor email/name.")
+
+        # Backwards-compatible behavior: if no sponsor_join was provided, auto-create a Sponsor record tied to the user's email.
         if not sponsor:
-            sponsor = Sponsor(
-                Sponsor_Name=payload.name,
-                Sponsor_Description="",
-                Sponsor_Email=payload.email,
-                Sponsor_Phone_Num=payload.phone,
-            )
-            session.add(sponsor)
-            session.commit()
-            session.refresh(sponsor)
+            sponsor = session.exec(
+                select(Sponsor).where(Sponsor.Sponsor_Email == payload.email)
+            ).first()
 
-        # Link table (UserID -> Sponsor_ID)
+            if not sponsor:
+                sponsor = Sponsor(
+                    Sponsor_Name=payload.name,
+                    Sponsor_Description="",
+                    Sponsor_Email=payload.email,
+                    Sponsor_Phone_Num=payload.phone,
+                )
+                session.add(sponsor)
+                session.commit()
+                session.refresh(sponsor)
+
+        # Link table (UserID -> Sponsor_ID) (upsert)
         if sponsor.Sponsor_ID is not None:
             link = session.exec(
                 select(Sponsor_User).where(Sponsor_User.UserID == user.UserID)
@@ -146,7 +167,11 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
             if not link:
                 link = Sponsor_User(UserID=user.UserID, Sponsor_ID=sponsor.Sponsor_ID)
                 session.add(link)
-                session.commit()
+            else:
+                link.Sponsor_ID = sponsor.Sponsor_ID
+                session.add(link)
+
+            session.commit()
 
     return {"userId": user.UserID, "role": user.User_Role, "email": user.User_Email}
 
@@ -251,6 +276,7 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
         "role": user.User_Role,
         "email": user.User_Email,
         "name": user.User_Name,
+        "phone": user.User_Phone_Num
     }
 
 
@@ -259,7 +285,33 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
 # SPONSOR & DRIVER MANAGEMENT
 # -------------------------
 
+def _resolve_sponsor_from_email(session: Session, email: str) -> Optional[Sponsor]:
+    """Resolve a Sponsor for either:
+    1) a real Sponsor email (Sponsor.Sponsor_Email), or
+    2) a sponsor-user's login email via Sponsor_User -> Sponsor.
+    """
+    sponsor = session.exec(select(Sponsor).where(func.lower(Sponsor.Sponsor_Email) == email.lower())).first()
+    if sponsor:
+        return sponsor
 
+    user = session.exec(select(User).where(func.lower(User.User_Email) == email.lower())).first()
+    if not user or user.UserID is None:
+        return None
+
+    link = session.exec(select(Sponsor_User).where(Sponsor_User.UserID == user.UserID)).first()
+    if not link:
+        return None
+
+    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_ID == link.Sponsor_ID)).first()
+    return sponsor
+
+
+@app.get("/sponsor-user/resolve")
+def resolveSponsorForSponsorUser(email: str, session: Session = Depends(getSession)):
+    sponsor = _resolve_sponsor_from_email(session, email)
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found for this sponsor user email")
+    return sponsor
 
 
 

@@ -9,6 +9,9 @@
   const password = document.getElementById("password");
   const confirmPassword = document.getElementById("confirmPassword");
   const role = document.getElementById("role");
+  const sponsorJoinWrap = document.getElementById("sponsorJoinWrap");
+  const sponsorJoin = document.getElementById("sponsorJoin");
+  const sponsorJoinError = document.getElementById("sponsorJoinError");
 
   const nameError = document.getElementById("nameError");
   const phoneError = document.getElementById("phoneError");
@@ -59,8 +62,32 @@
     if ((confirmPassword?.value || "") !== pw) { setFieldError(confirmError, "Passwords do not match."); ok = false; }
     else setFieldError(confirmError, "");
 
-    return ok;
+    
+    // Sponsor accounts must link to an existing Sponsor organization
+    if ((role?.value || "").toLowerCase() === "sponsor") {
+      const v = (sponsorJoin?.value || "").trim();
+      if (!v) {
+        sponsorJoinError?.classList.remove("hidden");
+        ok = false;
+      } else {
+        sponsorJoinError?.classList.add("hidden");
+      }
+    } else {
+      sponsorJoinError?.classList.add("hidden");
+    }
+return ok;
   }
+
+
+  function updateSponsorJoinVisibility() {
+    const isSponsor = (role?.value || "").toLowerCase() === "sponsor";
+    if (sponsorJoinWrap) sponsorJoinWrap.classList.toggle("hidden", !isSponsor);
+    if (!isSponsor && sponsorJoin) sponsorJoin.value = "";
+    sponsorJoinError?.classList.add("hidden");
+  }
+
+  role?.addEventListener("change", updateSponsorJoinVisibility);
+  updateSponsorJoinVisibility();
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -77,6 +104,7 @@
         body: {
           name: fullName.value.trim(),
           role: role.value,
+          sponsor_join: (sponsorJoin?.value || "").trim(),
           email: email.value.trim(),
           phone: normalizePhone(phone.value),
           pssw: password.value,

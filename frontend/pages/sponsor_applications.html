@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="/config.js"></script>
+    <script src="../config.js"></script>
 <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="output.css" />
@@ -85,7 +85,49 @@
       </div>
     </section>
   </main>
+  <!-- Reject Reason Modal -->
+  <div id="reject-modal" class="hidden fixed inset-0 z-50">
+    <!-- backdrop -->
+    <div class="absolute inset-0 bg-black/40"></div>
 
+    <!-- modal -->
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-slate-200">
+        <div class="p-5 border-b border-slate-200">
+          <h3 class="text-lg font-bold text-slate-900">Reject Application</h3>
+          <p class="text-sm text-slate-600 mt-1">A reason is required. This will be saved/sent if supported.</p>
+        </div>
+
+        <div class="p-5 space-y-3">
+          <label for="reject-reason" class="text-sm font-semibold text-slate-700">Reason</label>
+          <textarea
+            id="reject-reason"
+            rows="4"
+            class="w-full rounded-xl border border-slate-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+            placeholder="Type the reason for rejecting this driver..."
+          ></textarea>
+          <div id="reject-error" class="hidden text-sm text-red-600">
+            Please enter a reason (at least 3 characters).
+          </div>
+        </div>
+
+        <div class="p-5 border-t border-slate-200 flex items-center justify-end gap-3">
+          <button
+            id="reject-cancel"
+            class="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-sm font-semibold"
+          >
+            Cancel
+          </button>
+          <button
+            id="reject-confirm"
+            class="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-sm font-semibold"
+          >
+            Reject Driver
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
   <script src="../js/api.js"></script>
   <script src="../js/sponsor-applications.js"></script>
 </body>

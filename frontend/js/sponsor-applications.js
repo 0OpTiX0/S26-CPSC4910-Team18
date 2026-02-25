@@ -12,6 +12,24 @@
   const exportBtn = document.getElementById("exportBtn");
   const logoutBtn = document.getElementById("logoutBtn");
 
+  document.getElementById("reject-cancel")?.addEventListener("click", closeRejectModal);
+
+  document.getElementById("reject-confirm")?.addEventListener("click", async () => {
+    const reason = getRejectReason();
+    if (!reason) return;
+    if (!pendingRejectAppId) return;
+
+    try {
+      // Frontend-only requirement: force a reason before rejecting.
+      // We cannot guarantee backend stores it without backend changes.
+      await decide(pendingRejectAppId, "Rejected");
+      closeRejectModal();
+      await load(); // refresh list
+    } catch (e) {
+      alert("Failed to reject application.");
+    }
+  });
+
   function setStatus(msg, isError=false) {
     if (!statusEl) return;
     statusEl.textContent = msg;
@@ -48,28 +66,54 @@
     return role === "sponsor" || role === "sponsor_user";
   }
 
-async function lookupSponsorId(email) {
-  const sponsors = await window.API.request(`/sponsors?sponsorEmail=${encodeURIComponent(email)}`);
+  let pendingRejectAppId = null;
 
-  if (!Array.isArray(sponsors) || sponsors.length === 0) {
-    throw new Error("No sponsor record found for this email.");
+  function openRejectModal(appId) {
+    pendingRejectAppId = appId;
+
+    const modal = document.getElementById("reject-modal");
+    const reasonEl = document.getElementById("reject-reason");
+    const errEl = document.getElementById("reject-error");
+
+    if (!modal || !reasonEl || !errEl) return;
+
+    reasonEl.value = "";
+    errEl.classList.add("hidden");
+    modal.classList.remove("hidden");
+    reasonEl.focus();
   }
 
-  // Support both Sponsor_Email and sponsor_email (and ID variants)
-  const getEmail = (s) =>
-    (s.Sponsor_Email ?? s.sponsor_email ?? s.sponsorEmail ?? "").toLowerCase();
+  function closeRejectModal() {
+    pendingRejectAppId = null;
+    const modal = document.getElementById("reject-modal");
+    if (modal) modal.classList.add("hidden");
+  }
 
-  const getId = (s) =>
-    s.Sponsor_ID ?? s.sponsor_id ?? s.sponsorId;
+  function getRejectReason() {
+    const reasonEl = document.getElementById("reject-reason");
+    const errEl = document.getElementById("reject-error");
+    const reason = (reasonEl?.value || "").trim();
 
-  const exact = sponsors.find((s) => getEmail(s) === email.toLowerCase());
-  const sponsor = exact || sponsors[0];
+    if (reason.length < 3) {
+      if (errEl) errEl.classList.remove("hidden");
+      return null;
+    }
+    if (errEl) errEl.classList.add("hidden");
+    return reason;
+  }
 
-  const sponsorId = getId(sponsor);
-  if (!sponsorId) throw new Error("Sponsor record missing Sponsor_ID.");
+  async function lookupSponsorId(email) {
+    // Sponsor users are linked to a Sponsor through Sponsor_User (UserID -> Sponsor_ID).
+    // This endpoint resolves either:
+    //  - a real Sponsor email (Sponsor.Sponsor_Email), OR
+    //  - the logged-in sponsor user's email via Sponsor_User.
+    const sponsor = await window.API.request(`/sponsor-user/resolve?email=${encodeURIComponent(email)}`);
 
-  return sponsorId;
-}
+    const sponsorId = sponsor?.Sponsor_ID ?? sponsor?.sponsor_id ?? sponsor?.sponsorId;
+    if (!sponsorId) throw new Error("Sponsor record missing Sponsor_ID.");
+
+    return sponsorId;
+  }
 
 
   async function fetchApps({ sponsorId, status, applicantEmail }) {
@@ -141,7 +185,7 @@ async function lookupSponsorId(email) {
         await decide(a?.ApplicationID, "Approved");
       });
       card.querySelector('[data-act="reject"]')?.addEventListener("click", async () => {
-        await decide(a?.ApplicationID, "Rejected");
+        openRejectModal(a?.ApplicationID);
       });
 
       listEl.appendChild(card);
