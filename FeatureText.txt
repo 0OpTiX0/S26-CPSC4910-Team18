@@ -31,3 +31,14 @@ logged in and cut out the need for the sponsor email or instad of using sponsor_
 /account/{user_id} (GET) ---- Works
 /account/{user_id} (PATCH) ---- Works
 /account/{user_id}/change_password ---- Works
+/account/{user_id}/request_password_change ---- Works
+/account/{user_id}/verify_token ---- Works
+/reset-passoword --- No longer needed due to new endpoints.
+/admin/{sponsor_id} ---- Works
+/sponsor/{sponsor_id} (DELETE) ---- Works
+/report (GET) ---- Works
+/report (POST) ---- Works
+/report/{report_id} (PATCH) ---- Works
+/report/{report_id} (DELETE ---- Works)
+/transaction/{driver_id} ---- logic is partially working, need to fix system that records driver users
+

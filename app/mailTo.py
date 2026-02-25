@@ -68,11 +68,12 @@ def passwordResetEmail(recipient: str, verifcode: str) -> bool:
             
             
             
-            f"A new driver application was submitted.\n"
+            f"Hello user! :P\n"
             f"\n\n\n\n"
-            f"A password request was made for your account"
-            f"Use this code: {verifcode} to successfully make the password change when you navigate to"
-            f" http://yourapp.com/verificationpage.html\n"
+            f"A password request was made for your account.\n\n"
+            f"Please use this code: \n {verifcode} \n to continue with the password update process!\n\n\n"
+            f"Fear not, all of your information is encrypted. Nobody is getting into your account.\n\n\n"
+            f"If you are having issues gaining access to the page, use this link to navigate!\n\nhttp://yourapp.com/verificationpage.html\n"
             f"Sender: {smtp_user}\n"
         )
 

@@ -642,7 +642,7 @@ def verifyToken(user_id: int,tokenAttempt: str, session: Session = Depends(getSe
     return {"message": "Verification token is valid"}
     
 
-
+    
 @app.post("/account/{user_id}/change-password")
 def changePassword(
     user_id: int,
@@ -673,39 +673,41 @@ def changePassword(
     return {"message": "Password changed successfully"}
 
 
+# New endpoints take care of the verification and email service required
+# to secure the password changing process.
 
-@app.post("/reset-password")
-def resetPassword(
-    payload: ResetPasswordRequest,
-    session: Session = Depends(getSession),
-):
-    user = session.exec(
-        select(User).where(User.User_Email == payload.email)
-    ).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    if not user.Verification_Code:
-        raise HTTPException(status_code=400, detail="No verification token requested")
-
-    if not verifyPassword(payload.token, user.Verification_Code):
-        raise HTTPException(status_code=401, detail="Invalid verification token")
-        
-    if verifyPassword(payload.new_password, user.User_Hashed_Pss):
-        raise HTTPException(status_code=409, detail="New password cannot be the same as the current password")
-
-    validate_password_complexity(payload.new_password)
-
-    user.User_Hashed_Pss = encryptString(payload.new_password)
-    user.User_Login_Attempts = 0
-    user.User_Lockout_Time = None
-    user.Verification_Code = None
-
-    session.add(user)
-    session.commit()
-
-    return {"message": "Password reset successfully"}
+# @app.post("/reset-password")
+# def resetPassword(
+#     payload: ResetPasswordRequest,
+#     session: Session = Depends(getSession),
+# ):
+#     user = session.exec(
+#         select(User).where(User.User_Email == payload.email)
+#     ).first()
+#
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#
+#     if not user.Verification_Code:
+#         raise HTTPException(status_code=400, detail="No verification token requested")
+#
+#     if not verifyPassword(payload.token, user.Verification_Code):
+#         raise HTTPException(status_code=401, detail="Invalid verification token")
+#         
+#     if verifyPassword(payload.new_password, user.User_Hashed_Pss):
+#         raise HTTPException(status_code=409, detail="New password cannot be the same as the current password")
+#
+#     validate_password_complexity(payload.new_password)
+#
+#     user.User_Hashed_Pss = encryptString(payload.new_password)
+#     user.User_Login_Attempts = 0
+#     user.User_Lockout_Time = None
+#     user.Verification_Code = None
+#
+#     session.add(user)
+#     session.commit()
+#
+#     return {"message": "Password reset successfully"}
     
 
 
