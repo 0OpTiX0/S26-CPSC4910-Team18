@@ -2,12 +2,10 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import select, Session, delete
 from sqlalchemy import func  # <-- IMPORTANT (fixes your func NameError)
-from encrypt import encryptString, verifyPassword
+from encrypt import encryptString, verifyPassword, generate_verification_code
 from datetime import datetime, timezone, timedelta
-from mailTo import emailSponsor
+from mailTo import emailSponsor, passwordResetEmail
 from typing import Optional, Literal
-import secrets
-from pydantic import BaseModel
 import os
 import re
 
@@ -116,6 +114,7 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         User_Hashed_Pss=encryptString(payload.pssw),
         User_Login_Attempts=0,
         User_Lockout_Time=None,
+        Verification_Code=None
     )
     session.add(user)
     session.commit()
@@ -269,19 +268,19 @@ def getSponsors(
     session: Session = Depends(getSession),
     sponsorName: Optional[str] = Query(None),
     sponsorPhoneNum: Optional[str] = Query(None),
-    sponsorEmail: Optional[str] = Query(None),
-    sponsorDescription: Optional[str] = Query(None),
+    sponsorEmail: Optional[str] = Query(None)
 ):
     stmt = select(Sponsor)
 
     if sponsorName:
         stmt = stmt.where(func.lower(Sponsor.Sponsor_Name).like(f"%{sponsorName.lower()}%"))
+    
     if sponsorPhoneNum:
         stmt = stmt.where(func.lower(Sponsor.Sponsor_Phone_Num).like(f"%{sponsorPhoneNum.lower()}%"))
+    
     if sponsorEmail:
         stmt = stmt.where(func.lower(Sponsor.Sponsor_Email).like(f"%{sponsorEmail.lower()}%"))
-    if sponsorDescription:
-        stmt = stmt.where(func.lower(Sponsor.Sponsor_Description).like(f"%{sponsorDescription.lower()}%"))
+    
 
     return session.exec(stmt).all()
 
@@ -297,18 +296,17 @@ def dropDriver(
     drop_reason : Optional[str] = Query(None),
     session : Session = Depends(getSession)
 ):
+    
+    
     u_stmt = session.exec(select(User.UserID).where(User.User_Email == user_email)).first()
-
     if not u_stmt:
         raise HTTPException(status_code=404, detail="User does not exist")
     
     s_stmt = session.exec(select(Sponsor.Sponsor_ID).where(Sponsor.Sponsor_Email == sponsor_email)).first()
-
     if not s_stmt:
         raise HTTPException(status_code=404, detail="Sponsor does not exist")
 
     stmt = session.exec(select(Driver_User).where(Driver_User.UserID == u_stmt, Driver_User.Sponsor_ID == s_stmt)).first()
-
     if not stmt:
         raise HTTPException(status_code=404, detail="Driver does not exist")
     
@@ -600,6 +598,51 @@ def updateProfile(
     return {"message": "Profile updated successfully"}
 
 
+
+
+@app.post("/account/{user_id}/request_password_change")
+def requestPswChange(user_id: int, session : Session=Depends(getSession)):
+    
+    stmt = select(User).where(User.UserID == user_id)
+    user = session.exec(stmt).first()
+    
+    if not user:
+        raise HTTPException(status_code=404,detail="User not found")
+    
+    verifCode = generate_verification_code()
+    user.Verification_Code = encryptString(verifCode)
+    
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    
+    if not passwordResetEmail(user.User_Email, verifCode):
+        user.Verification_Code = None
+        session.add(user)
+        session.commit()
+        raise HTTPException(status_code=500, detail="Email failed to send")
+
+    return {"message":f"Change password email sent successfully sent to: {user.User_Email}"}    
+
+
+@app.post("/account/{user_id}/verify_token")
+def verifyToken(user_id: int,tokenAttempt: str, session: Session = Depends(getSession)):
+    stmt = select(User).where(User.UserID == user_id)
+    user = session.exec(stmt).first()
+    
+    if not user:
+        raise HTTPException(status_code=404,detail="User not found")
+    
+    if not user.Verification_Code:
+        raise HTTPException(status_code=400, detail="No verification token requested")
+
+    if not verifyPassword(tokenAttempt, user.Verification_Code):
+        raise HTTPException(status_code=401, detail="Invalid verification token")
+
+    return {"message": "Verification token is valid"}
+    
+
+
 @app.post("/account/{user_id}/change-password")
 def changePassword(
     user_id: int,
@@ -619,6 +662,7 @@ def changePassword(
     if verifyPassword(payload.new_password, user.User_Hashed_Pss):
         raise HTTPException(status_code=409, detail="New password cannot be the same as the current password")
 
+    
     validate_password_complexity(payload.new_password)
 
     user.User_Hashed_Pss = encryptString(payload.new_password)
@@ -641,6 +685,12 @@ def resetPassword(
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if not user.Verification_Code:
+        raise HTTPException(status_code=400, detail="No verification token requested")
+
+    if not verifyPassword(payload.token, user.Verification_Code):
+        raise HTTPException(status_code=401, detail="Invalid verification token")
         
     if verifyPassword(payload.new_password, user.User_Hashed_Pss):
         raise HTTPException(status_code=409, detail="New password cannot be the same as the current password")
@@ -650,6 +700,7 @@ def resetPassword(
     user.User_Hashed_Pss = encryptString(payload.new_password)
     user.User_Login_Attempts = 0
     user.User_Lockout_Time = None
+    user.Verification_Code = None
 
     session.add(user)
     session.commit()

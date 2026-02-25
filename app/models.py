@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 
 
+
 class User(SQLModel, table=True):
     __tablename__= "User"
     UserID : Optional[int] = Field(default=None, primary_key=True, unique=True)
@@ -17,6 +18,7 @@ class User(SQLModel, table=True):
     User_Hashed_Pss : str
     User_Login_Attempts : int = Field(default=0)
     User_Lockout_Time : Optional[datetime] = Field(default=None)
+    Verification_Code : Optional[str] = Field(default = None)
 
 class Market(SQLModel, table=True):
     __tablename__ = "Market"
@@ -127,6 +129,7 @@ class UserCreate(BaseModel):
     pssw: str
     logattp: int = 0
     lockout: Optional[datetime] = None
+    verification_code: Optional[str] = None
     
 class LoginRequest(BaseModel):
     email: str
@@ -167,6 +170,7 @@ class ChangePasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     email: str
+    token: str
     new_password: str
 
 

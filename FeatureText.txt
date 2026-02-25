@@ -1,7 +1,7 @@
                                     ============================================================
-
                                                    Team 18 API Endpoint Test Log
                                                 Endpoints tested by: Joseph laudati
+                                                       Test date: 2/24/2026
                                     ============================================================    
 
 
@@ -11,3 +11,23 @@
 /user(POST) ----- Works
 /user(DELETE) ---- Works
 /user/login_attempts ---- Works
+/user/driver_user ----- Works
+/login ---- Works
+/sponsors ---- Works
+/sponsors/get_driver_login_attempts ---- works
+
+/sponsors/drop_driver ----- Logic is bugged and doesnt function properly *Note: This endpoint might be redunant. Use /user (DELETE) to remove the user from the program*
+
+/sponsors/suspend_driver ---- Logic is flawed and could break. *Note: Why is the sponsor's email required for this? Just enable the this feature when a sponsor user is 
+logged in and cut out the need for the sponsor email or instad of using sponsor_email, use the sponsor ID linked to sponsor_user.*
+
+/sponsors/{sponsor_email}/application/pending ---- Works
+/sponsors/{sponsor_email}/drivers ---- Works
+/application (POST) ---- Works (Email bot works!)
+/application (GET) ---- Works
+/application (DELETE) ---- Works
+/application/{application_id} ---- Works
+/sponsor (POST) ---- Works
+/account/{user_id} (GET) ---- Works
+/account/{user_id} (PATCH) ---- Works
+/account/{user_id}/change_password ---- Works
