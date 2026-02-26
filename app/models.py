@@ -38,7 +38,7 @@ class Sponsor(SQLModel, table=True):
 class Driver_User(SQLModel, table = True):
     __tablename__ = "Driver_User"
     UserID : Optional[int] = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
-    Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
+    Sponsor_ID : Optional[int] = Field(foreign_key="Sponsor.Sponsor_ID")
     User_Points : int = Field(default=0)
     Is_Suspended: bool = Field(default=False)
     Suspension_Reason: Optional[str] = None
@@ -200,10 +200,3 @@ class MarketCreate(BaseModel):
     name : str
     description : str
 
-# Driver User Create
-# --- I am unsure of how to tell what sponsor the driver user is assigned.
-# --- I guess it's for the application. The function that I write can be turned into a helper function if need be.
-
-class DriverUserCreate(BaseModel):
-    email : Optional[str] = None
-    sponsor_email : str

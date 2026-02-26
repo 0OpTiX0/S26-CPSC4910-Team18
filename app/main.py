@@ -40,7 +40,7 @@ def db_status(session: Session = Depends(getSession)):
             provider = "Supabase"
             
         return {
-            "status": "Connected ✅",
+            "status": f"Connected successfully to {db_host}",
             "endpoint": db_host,
             "provider": provider,
             "database_type": "MySQL"
@@ -119,6 +119,24 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
     session.add(user)
     session.commit()
     session.refresh(user)
+    
+    if (payload.role).lower() == "driver":
+        stmt = select(Driver_User).where(Driver_User.UserID == user.UserID)
+        driver = session.exec(stmt).first()
+        if driver:
+            raise HTTPException(status_code= 400, detail="Driver already registered!")
+        
+        newDriver = Driver_User(
+            UserID= user.UserID,
+            Sponsor_ID = None,
+            User_Points= 0  
+        )
+        
+        session.add(newDriver)
+        session.commit()
+        session.refresh(newDriver)
+            
+    
 
 
     if (payload.role or "").lower() == "sponsor":
@@ -176,6 +194,21 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
     return {"userId": user.UserID, "role": user.User_Role, "email": user.User_Email}
 
 
+@app.get("/driver")
+def getDrivers(user_id: Optional[int] = Query(None), driver_sponsor_id: Optional[int] = Query(None), session: Session = Depends(getSession)):
+    stmt = select(Driver_User)
+    
+    if user_id is not None:
+        stmt = stmt.where(Driver_User.UserID == user_id)
+        
+    if driver_sponsor_id is not None:
+        stmt = stmt.where(Driver_User.Sponsor_ID == driver_sponsor_id)
+        
+    drivers = session.exec(stmt).all()
+    
+    return drivers
+
+
 
 
 @app.delete("/user")
@@ -198,6 +231,8 @@ def getLoginAttempts(user_email : str, session: Session = Depends(getSession)):
     stmt = session.exec(select(User.User_Login_Attempts).where(User.User_Email == user_email)).first()
     return stmt
 
+
+"""
 @app.post("/user/driver_user")
 def createDriverUser(payload: DriverUserCreate, session: Session = Depends(getSession)):
     sponsor = session.exec(
@@ -224,7 +259,7 @@ def createDriverUser(payload: DriverUserCreate, session: Session = Depends(getSe
     session.refresh(driver_user)
 
     return driver_user
-
+"""
 # -------------------------
 # AUTHENTICATION
 # -------------------------
@@ -725,41 +760,7 @@ def changePassword(
     return {"message": "Password changed successfully"}
 
 
-# New endpoints take care of the verification and email service required
-# to secure the password changing process.
 
-# @app.post("/reset-password")
-# def resetPassword(
-#     payload: ResetPasswordRequest,
-#     session: Session = Depends(getSession),
-# ):
-#     user = session.exec(
-#         select(User).where(User.User_Email == payload.email)
-#     ).first()
-#
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found")
-#
-#     if not user.Verification_Code:
-#         raise HTTPException(status_code=400, detail="No verification token requested")
-#
-#     if not verifyPassword(payload.token, user.Verification_Code):
-#         raise HTTPException(status_code=401, detail="Invalid verification token")
-#         
-#     if verifyPassword(payload.new_password, user.User_Hashed_Pss):
-#         raise HTTPException(status_code=409, detail="New password cannot be the same as the current password")
-#
-#     validate_password_complexity(payload.new_password)
-#
-#     user.User_Hashed_Pss = encryptString(payload.new_password)
-#     user.User_Login_Attempts = 0
-#     user.User_Lockout_Time = None
-#     user.Verification_Code = None
-#
-#     session.add(user)
-#     session.commit()
-#
-#     return {"message": "Password reset successfully"}
     
 
 
@@ -905,6 +906,8 @@ def resolveReport(report_id:int, session:Session = Depends(getSession)):
 # -------------------------
 # POINTS & TRANSACTIONS
 # -------------------------
+
+
 
 # Gets all transaction reports for a single driver
 @app.get("/transaction/{driver_id}")
@@ -1072,7 +1075,9 @@ def createCart(user_id:int, session: Session = Depends(getSession)):
     
     if not user:
         raise HTTPException(status_code=404, detail="User Not Found!")
-    
+
+
+
 
 #Driver Notification endpoints will go here
 
