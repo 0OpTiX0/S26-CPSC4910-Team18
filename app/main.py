@@ -960,8 +960,9 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
         raise HTTPException(status_code=404, detail="User not found")
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found")
-    
-    
+    if driver.Is_Suspended:
+        raise HTTPException(status_code=403, detail="Driver is suspended")
+
     driver.User_Points += payload.points_change
     
     
