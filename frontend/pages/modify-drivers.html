@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit Driver Information - Sponsor Dashboard</title>
+    <title>Modify Points - Sponsor Dashboard</title>
     <link rel="stylesheet" href="output.css">
+    <script src="../config.js"></script>
+    <script src="../js/api.js"></script>
 </head>
 <body class="bg-slate-50 min-h-screen font-sans">
 
@@ -16,95 +18,65 @@
                     <span class="font-bold text-slate-900">Good Driver</span>
                 </a>
                 <div class="hidden md:flex items-center gap-6 border-l border-slate-200 pl-8">
+                    <a href="index.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600">Home</a>
                     <a href="sponsor_applications.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600">Applications</a>
-                    <a href="suspend-drivers.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600">Suspensions</a>
-                    <a href="#" class="text-sm font-bold text-blue-600 border-b-2 border-blue-600 pb-1">Edit Drivers</a>
+                    <a href="suspend-drivers.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600">Suspend Drivers</a>
+                    <a href="modify-drivers.html" class="text-sm font-bold text-blue-600 border-b-2 border-blue-600 pb-1">Modify Points</a>
                 </div>
             </div>
-            <div class="text-sm text-slate-500 font-medium italic">Sponsor Mode</div>
+            <div class="flex items-center gap-4">
+                <button id="logoutBtn" class="text-xs font-bold text-red-500 hover:text-red-700">Log Out</button>
+            </div>
         </div>
     </nav>
 
-    <main class="max-w-6xl mx-auto p-6 lg:p-12">
-        
+    <main class="max-w-4xl mx-auto p-6 lg:p-12">
         <header class="mb-10">
-            <h1 class="text-3xl font-bold text-slate-900">Modify Driver Details</h1>
-            <p class="text-slate-500 mt-2 max-w-2xl">
-                Update driver contact information, address details, or account preferences.
+            <h1 class="text-3xl font-bold text-slate-900">Driver Rewards Management</h1>
+            <p class="text-slate-500 mt-2">
+                Manage point balances for your fleet. Click a driver to issue new points or deduct for violations.
             </p>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            <div class="lg:col-span-1 space-y-6">
-                <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                    <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Select Driver</h2>
-                    <div class="relative mb-4">
-                        <input type="text" placeholder="Search by name..." 
-                               class="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 outline-none text-sm">
-                    </div>
-                    
-                    <div class="py-10 text-center border-2 border-dashed border-slate-100 rounded-2xl">
-                        <p class="text-xs text-slate-400 px-4">Search and select a driver from your program to begin editing.</p>
-                    </div>
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+            <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                <h2 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Active Drivers</h2>
+                <span id="driverCount" class="bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full">0 Drivers</span>
+            </div>
+            <div id="driverListContainer" class="divide-y divide-slate-100">
+                <div class="p-12 text-center">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mb-4"></div>
+                    <p class="text-slate-500 font-medium">Fetching fleet data...</p>
                 </div>
             </div>
+        </div>
 
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="p-8 border-b border-slate-100 bg-slate-50/50">
-                        <h2 class="text-xl font-bold text-slate-900">Driver Profile Information</h2>
-                        <p class="text-sm text-slate-500">Changes will be logged for auditing purposes.</p>
+        <div id="editSection" class="hidden bg-white rounded-3xl border-2 border-blue-600 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div class="p-6 bg-blue-600 flex justify-between items-center">
+                <h2 class="text-xl font-bold text-white">Adjusting: <span id="selectedDriverName" class="opacity-90">---</span></h2>
+                <button onclick="document.getElementById('editSection').classList.add('hidden')" class="text-white/70 hover:text-white">✕ Close</button>
+            </div>
+            
+            <div class="p-8">
+                <div class="max-w-md mx-auto space-y-4">
+                    <label class="block text-center text-sm font-bold text-slate-500 uppercase tracking-widest">Current Balance</label>
+                    <div class="flex items-center gap-4">
+                        <div class="relative flex-grow">
+                            <input type="number" id="currentPoints" disabled 
+                                   class="w-full pl-12 pr-4 py-6 bg-slate-900 text-white text-4xl rounded-2xl font-black text-center border-none">
+                            <span class="absolute left-6 top-1/2 -translate-y-1/2 text-2xl">⭐</span>
+                        </div>
+                        <button type="button" id="addPointsBtn" 
+                                class="h-full px-8 bg-emerald-500 text-white rounded-2xl font-bold text-xl hover:bg-emerald-600 hover:scale-105 transition-all shadow-lg active:scale-95">
+                            + Adjust
+                        </button>
                     </div>
-
-                    <form class="p-8 space-y-6">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="space-y-2">
-                                <label class="text-sm font-bold text-slate-700">Full Name</label>
-                                <input type="text" disabled placeholder="Select a driver..."
-                                       class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 cursor-not-allowed">
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-bold text-slate-700">Email Address</label>
-                                <input type="email" disabled placeholder="Select a driver..."
-                                       class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 cursor-not-allowed">
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-bold text-slate-700">Phone Number</label>
-                                <input type="text" disabled placeholder="Select a driver..."
-                                       class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 cursor-not-allowed">
-                            </div>
-                            <div class="space-y-2">
-                                <label class="text-sm font-bold text-slate-700">Point Balance</label>
-                                <input type="number" disabled placeholder="0"
-                                       class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 cursor-not-allowed">
-                            </div>
-                        </div>
-
-                        <div class="space-y-2 pt-4 border-t border-slate-100">
-                            <label class="text-sm font-bold text-slate-700">Mailing Address</label>
-                            <textarea disabled rows="3" placeholder="Select a driver..."
-                                      class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-400 cursor-not-allowed"></textarea>
-                        </div>
-
-                        <div class="flex items-center justify-end gap-4 pt-6">
-                            <button type="button" class="px-6 py-3 text-sm font-bold text-slate-500 hover:text-slate-700">
-                                Cancel
-                            </button>
-                            <button type="submit" disabled
-                                    class="px-8 py-3 bg-blue-600/50 text-white font-bold rounded-xl cursor-not-allowed shadow-lg">
-                                Save Changes
-                            </button>
-                        </div>
-                    </form>
+                    <p class="text-center text-xs text-slate-400">Click "+ Adjust" to enter a specific point change.</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <footer class="py-10 text-center text-slate-400 text-xs font-medium">
-        Good Driver Administrative Tools • Internal Use Only
-    </footer>
-
+    <script src="../js/modify-drivers.js"></script>
 </body>
 </html>
