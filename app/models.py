@@ -115,11 +115,18 @@ class CartItem(SQLModel, table=True):
     ProdID: Optional[int] = Field(foreign_key="Product.ProductID")
     Prod_Qty: int
     Prod_Price: int
-    
+
+class Notification(SQLModel, table=True):
+    __tablename__ = "Notification"
+    NotificationID: Optional[int] = Field(default=None, primary_key=True, unique=True)
+    UserID: int = Field(foreign_key="User.UserID")
+    Message: str
+    Type: str   # e.g. "Profile", "Points", "Application"
+    Is_Read: bool = Field(default=False)
+    Created_At: datetime = Field(default_factory=datetime.utcnow)
 
 
     
-
 
 # Payload classes for API Endpoints. They allow for information exchagne between frontend and backend
 
