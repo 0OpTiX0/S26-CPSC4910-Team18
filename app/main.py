@@ -54,7 +54,6 @@ def db_status(session: Session = Depends(getSession)):
 """
 #Password Complexity Helper Function
 """
-
 def validate_password_complexity(password: str):
     if len(password) < 8:
         raise HTTPException(status_code=400,detail="Password must be at least 8 characters long")
@@ -70,6 +69,18 @@ def validate_password_complexity(password: str):
 
     if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
         raise HTTPException(status_code=400, detail="Password must contain at least one special character")
+
+"""
+#Notification Helper Function
+"""
+def create_notification(session: Session, user_id: int, message: str, notif_type: str):
+    notification = Notification(
+        UserID=user_id,
+        Message=message,
+        Type=notif_type,
+        Created_At=datetime.now(timezone.utc)
+    )
+    session.add(notification)
 
 # -------------------------
 # USER MANAGEMENT
@@ -532,6 +543,13 @@ def submitApplication(payload: ApplicationRequest, session: Session = Depends(ge
     session.commit()
     session.refresh(application)
 
+    create_notification(
+        session,
+        user.UserID,
+        f"Your application to sponsor {sponsor.Sponsor_Name} has been submitted.",
+        "Application"
+    )
+
     return {"message": "Email sent successfully and application saved to database!"}
 
 
@@ -582,6 +600,21 @@ def updateStatus(
     session.add(application)
     session.commit()
     session.refresh(application)
+
+    if decision == "Approved":
+        create_notification(
+            session,
+            application.UserID,
+            "Your application has been approved!",
+            "Application"
+        )
+    elif decision == "Rejected":
+        create_notification(
+            session,
+            application.UserID,
+            f"Your application was rejected. Reason: {rejection_reason}",
+            "Application"
+        )
 
     return application
 
@@ -682,6 +715,13 @@ def updateProfile(
     session.commit()
     session.refresh(user)
 
+    create_notification(
+        session,
+        user.UserID,
+        "Your profile information was updated.",
+        "Profile"
+    )
+
     return {"message": "Profile updated successfully"}
 
 
@@ -709,7 +749,7 @@ def requestPswChange(user_id: int, session : Session=Depends(getSession)):
         session.commit()
         raise HTTPException(status_code=500, detail="Email failed to send")
 
-    return {"message":f"Change password email sent successfully sent to: {user.User_Email}"}    
+    return {"message":f"Change password email sent successfully to: {user.User_Email}"}    
 
 
 @app.post("/account/{user_id}/verify_token")
@@ -757,6 +797,13 @@ def changePassword(
     session.add(user)
     session.commit()
 
+    create_notification(
+        session,
+        user.UserID,
+        "Your password was successfully changed.",
+        "Security"
+    )
+    
     return {"message": "Password changed successfully"}
 
 
@@ -981,6 +1028,13 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
     session.commit()          
     session.refresh(driver)
     session.refresh(newTransaction)
+
+    create_notification(
+        session,
+        driver.UserID,
+        f"Your points changed by {payload.points_change}. New total: {driver.User_Points}",
+        "Points"
+    )
     
     
     return({"message": "Transaction successful and log recorded."})
@@ -1198,14 +1252,34 @@ def getDriverCSV(driver_id: Optional[int] = Query(None),
     return StreamingResponse(buffer, media_type="text/csv", headers=headers)
     
 
+# -------------------------
+# NOTIFICATIONS
+# -------------------------
 
+@app.get("/notifications/{user_id}")
+def getNotifications(user_id: int, session: Session = Depends(getSession)):
+    notifications = session.exec(
+        select(Notification)
+        .where(Notification.UserID == user_id)
+        .order_by(Notification.Created_At.desc())
+    ).all()
 
+    return notifications
 
-#Driver Notification endpoints will go here
+@app.patch("/notifications/{notification_id}/read")
+def markAsRead(notification_id: int, session: Session = Depends(getSession)):
+    notification = session.exec(
+        select(Notification).where(Notification.NotificationID == notification_id)
+    ).first()
 
+    if not notification:
+        raise HTTPException(status_code=404, detail="Notification not found")
 
-    
+    notification.Is_Read = True
+    session.add(notification)
+    session.commit()
 
+    return {"message": "Notification marked as read"}
 
 
 
