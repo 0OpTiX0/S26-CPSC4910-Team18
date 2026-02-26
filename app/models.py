@@ -79,9 +79,13 @@ class Point_Transaction(SQLModel, table=True):
     __tablename__="Point_Transaction"
     TransactionID: Optional[int] = Field(unique=True, primary_key=True, default=None)
     Driver_User_ID : Optional[int] = Field(foreign_key="Driver_User.UserID")
+    Driver_Name: str
+    Sponsor_Name: str
     Points_Change: str
+    Points_After_Change: int
     Reason_For_Change:str
-    Created_At: datetime 
+    Created_At: datetime
+    
     
     
 class Cart(SQLModel, table=True):
@@ -200,3 +204,6 @@ class MarketCreate(BaseModel):
     name : str
     description : str
 
+class EnrollDriver(BaseModel):
+    driver_id: int
+    sponsor_id: int

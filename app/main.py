@@ -1,11 +1,14 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from sqlmodel import select, Session, delete
 from sqlalchemy import func  # <-- IMPORTANT (fixes your func NameError)
 from encrypt import encryptString, verifyPassword, generate_verification_code
 from datetime import datetime, timezone, timedelta
 from mailTo import emailSponsor, passwordResetEmail
 from typing import Optional, Literal
+import csv
+import io
 import os
 import re
 
@@ -194,23 +197,6 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
     return {"userId": user.UserID, "role": user.User_Role, "email": user.User_Email}
 
 
-@app.get("/driver")
-def getDrivers(user_id: Optional[int] = Query(None), driver_sponsor_id: Optional[int] = Query(None), session: Session = Depends(getSession)):
-    stmt = select(Driver_User)
-    
-    if user_id is not None:
-        stmt = stmt.where(Driver_User.UserID == user_id)
-        
-    if driver_sponsor_id is not None:
-        stmt = stmt.where(Driver_User.Sponsor_ID == driver_sponsor_id)
-        
-    drivers = session.exec(stmt).all()
-    
-    return drivers
-
-
-
-
 @app.delete("/user")
 def deleteUser(payload: DeleteRequest, session: Session = Depends(getSession)):
     user = session.exec(select(User).where(User.User_Name == payload.target)).first()
@@ -232,34 +218,7 @@ def getLoginAttempts(user_email : str, session: Session = Depends(getSession)):
     return stmt
 
 
-"""
-@app.post("/user/driver_user")
-def createDriverUser(payload: DriverUserCreate, session: Session = Depends(getSession)):
-    sponsor = session.exec(
-            select(Sponsor.Sponsor_ID).where(Sponsor.Sponsor_Email == payload.sponsor_email)
-        ).first()
-    
-    if not sponsor:
-        raise HTTPException(status_code=404, detail="Sponsor does not exist")
-    
-    driver = session.exec(
-        select(User.UserID).where(User.User_Email == payload.email)
-    ).first()
 
-    if not driver:
-        raise HTTPException(status_code=404, detail="Driver does not exist")
-    
-    driver_user = Driver_User(
-        UserID=driver,
-        Sponsor_ID=sponsor
-    )
-
-    session.add(driver_user)
-    session.commit()
-    session.refresh(driver_user)
-
-    return driver_user
-"""
 # -------------------------
 # AUTHENTICATION
 # -------------------------
@@ -375,6 +334,47 @@ def getSponsors(
 def driverLoginAttempts(driver_email : str, session : Session = Depends(getSession)):
     log_in_attempts = getLoginAttempts(driver_email, session)
     return log_in_attempts
+
+
+@app.get("/driver")
+def getDrivers(
+    user_id: Optional[int] = Query(None),
+    driver_sponsor_id: Optional[int] = Query(None),
+    session: Session = Depends(getSession),
+):
+    stmt = select(Driver_User)
+
+    if user_id is not None:
+        stmt = stmt.where(Driver_User.UserID == user_id)
+
+    if driver_sponsor_id is not None:
+        stmt = stmt.where(Driver_User.Sponsor_ID == driver_sponsor_id)
+
+    drivers = session.exec(stmt).all()
+    return drivers
+
+
+@app.patch("/driver")
+def enrollDriverWithSponsor(payload: EnrollDriver, session: Session = Depends(getSession)):
+    stmt = select(Driver_User).where(Driver_User.UserID == payload.driver_id)
+    driver = session.exec(stmt).first()
+
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found!")
+
+    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == payload.sponsor_id)
+    sponsor = session.exec(stmt).first()
+
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found!")
+
+    driver.Sponsor_ID = sponsor.Sponsor_ID
+
+    session.add(driver)
+    session.commit()
+    session.refresh(driver)
+
+    return {"message": "Driver successfully enrolled in the program!"}
 
 @app.delete("/sponsors/drop_driver")
 def dropDriver(
@@ -833,7 +833,7 @@ def getReports(auditID: Optional[int] = Query(None),
     if category is not None:
         stmt = stmt.where(UserReports.Category == category)
     if status is not None:
-        stmt = stmt.where(UserReports.Status == category)
+        stmt = stmt.where(UserReports.Status == status)
         
 
     reports = session.exec(stmt).all()
@@ -910,7 +910,7 @@ def resolveReport(report_id:int, session:Session = Depends(getSession)):
 
 
 # Gets all transaction reports for a single driver
-@app.get("/transaction/{driver_id}")
+@app.get("/report/transaction/{driver_id}")
 def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
     stmt = select(Driver_User).where(Driver_User.UserID == driver_id)
     driver = session.exec(stmt).first()
@@ -950,21 +950,34 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found!")
     
-   
-    pointChange = payload.points_change        
-    driver.User_Points += pointChange
+    u_stmt = select(User).where(User.UserID == driver.UserID)
+    s_stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID) 
+    
+    sponsor = session.exec(s_stmt).first()   
+    user = session.exec(u_stmt).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+    
+    
+    driver.User_Points += payload.points_change
+    
     
     newTransaction = Point_Transaction(
         Driver_User_ID= payload.driverID,
+        Driver_Name= user.User_Name,
+        Sponsor_Name= sponsor.Sponsor_Name,
         Points_Change= str(payload.points_change),
         Reason_For_Change= payload.reason,
-        Created_At= datetime.now(timezone.utc)
+        Created_At= datetime.now(timezone.utc),
+        Points_After_Change= driver.User_Points
     )
-    
     
     session.add(driver)
     session.add(newTransaction)
-    session.commit()
+    session.commit()          
     session.refresh(driver)
     session.refresh(newTransaction)
     
@@ -972,7 +985,7 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
     return({"message": "Transaction successful and log recorded."})
 
 #Deletes a transaction log
-@app.delete("/points/{transaction_id}")
+@app.delete("/transaction/{transaction_id}")
 def deleteTransactionLog(transaction_id: int, session: Session=Depends(getSession)):
     stmt = select(Point_Transaction).where(Point_Transaction.TransactionID == transaction_id)
     
@@ -1078,6 +1091,114 @@ def createCart(user_id:int, session: Session = Depends(getSession)):
 
 
 
+#CSV Generators will go here
+
+#this generates bug report csv
+@app.get("/report/bug_report_csv")
+def exportReportsCsv(
+    auditID: Optional[int] = Query(None),
+    user: Optional[int] = Query(None),
+    category: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    session: Session = Depends(getSession),
+):
+    stmt = select(UserReports)
+
+    if auditID is not None:
+        stmt = stmt.where(UserReports.AuditID == auditID)
+    if user is not None:
+        stmt = stmt.where(UserReports.UserID == user)
+    if category is not None:
+        stmt = stmt.where(UserReports.Category == category)
+    if status is not None:
+        stmt = stmt.where(UserReports.Status == status)
+
+    reports = session.exec(stmt).all()
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "AuditID",
+            "UserID",
+            "Category",
+            "Issue_Type",
+            "Issue_Description",
+            "Created_At",
+            "Status",
+        ]
+    )
+
+    for report in reports:
+        writer.writerow(
+            [
+                report.AuditID,
+                report.UserID,
+                report.Category,
+                report.Issue_Type,
+                report.Issue_Description,
+                report.Created_At.isoformat() if report.Created_At else None,
+                report.Status,
+            ]
+        )
+
+    buffer.seek(0)
+    filename = f"reports_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(buffer, media_type="text/csv", headers=headers)
+
+@app.get("/driver/transaction_report_csv")
+def getDriverCSV(driver_id: Optional[int] = Query(None), 
+                 session: Session = Depends(getSession)):
+    
+    stmt = select(Point_Transaction)
+    
+    #This is for if an admin wants to generate a transaction CSV for a
+    #specific driver
+    if driver_id is not None:
+        stmt = stmt.where(Point_Transaction.Driver_User_ID == driver_id)
+    
+    
+    reports = session.exec(stmt).all()
+    
+    buffer =io.StringIO()
+    
+    writer = csv.writer(buffer)
+    
+    writer.writerow(
+        [
+            "Transaction ID",
+            "Driver ID",
+            "Driver Name",
+            "Current Sponsor",
+            "Points Change",
+            "Driver Points After Change",
+            "Reason for Change",
+            "Report Timestamp"
+        ]
+    )
+    
+    for report in reports:
+        writer.writerow(
+            [
+                report.TransactionID,
+                report.Driver_User_ID,
+                report.Driver_Name,
+                report.Sponsor_Name,
+                report.Points_Change,
+                report.Points_After_Change,
+                report.Reason_For_Change,
+                report.Created_At,
+            ]
+        )
+    buffer.seek(0)
+    filename = f"transaction_report_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(buffer, media_type="text/csv", headers=headers)
+    
+
+
+
 
 #Driver Notification endpoints will go here
 
@@ -1095,4 +1216,3 @@ def createCart(user_id:int, session: Session = Depends(getSession)):
 #@app.delete("/cart/{cart_id}")
 #def deleteOrder(cart_id: int)   
     
-
