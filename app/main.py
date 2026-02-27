@@ -74,6 +74,7 @@ def validate_password_complexity(password: str):
 #Notification Helper Function
 """
 def create_notification(session: Session, user_id: int, message: str, notif_type: str):
+    
     notification = Notification(
         UserID=user_id,
         Message=message,
@@ -81,6 +82,8 @@ def create_notification(session: Session, user_id: int, message: str, notif_type
         Created_At=datetime.now(timezone.utc)
     )
     session.add(notification)
+    session.commit()
+    session.refresh(notification)
 
 # -------------------------
 # USER MANAGEMENT
@@ -543,12 +546,14 @@ def submitApplication(payload: ApplicationRequest, session: Session = Depends(ge
     session.commit()
     session.refresh(application)
 
-    create_notification(
-        session,
-        user.UserID,
-        f"Your application to sponsor {sponsor.Sponsor_Name} has been submitted.",
-        "Application"
-    )
+    if user.UserID is not None:
+        create_notification(
+            session,
+            user.UserID,
+            f"Your application to sponsor {sponsor.Sponsor_Name} has been submitted.",
+            "Application"
+        )
+        session.commit()
 
     return {"message": "Email sent successfully and application saved to database!"}
 
@@ -804,9 +809,27 @@ def changePassword(
         "Security"
     )
     
+    newPasswordChange = PasswordChangeLog(
+        UserID= user.UserID,
+        UserName= user.User_Name,
+        ChangedAt= datetime.now(timezone.utc)
+    )
+    session.add(newPasswordChange)
+    session.commit()
+    session.refresh(newPasswordChange)
+    
     return {"message": "Password changed successfully"}
 
-
+@app.get("/log/pss_logs")
+def getAllPasswordLogs(user_id: Optional[int] = Query(None), session:Session =Depends(getSession)):
+    stmt = select(PasswordChangeLog)
+    
+    if user_id is not None:
+        stmt = stmt.where(PasswordChangeLog.UserID == user_id)
+    
+    logs = session.exec(stmt)
+    
+    return logs
 
     
 
@@ -998,15 +1021,15 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
         raise HTTPException(status_code=404, detail="Driver not found!")
     
     u_stmt = select(User).where(User.UserID == driver.UserID)
-    s_stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID) 
+    sponsor = None
+    if driver.Sponsor_ID is not None:
+        s_stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID)
+        sponsor = session.exec(s_stmt).first()
     
-    sponsor = session.exec(s_stmt).first()   
     user = session.exec(u_stmt).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not sponsor:
-        raise HTTPException(status_code=404, detail="Sponsor not found")
     if driver.Is_Suspended:
         raise HTTPException(status_code=403, detail="Driver is suspended")
 
@@ -1016,7 +1039,7 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
     newTransaction = Point_Transaction(
         Driver_User_ID= payload.driverID,
         Driver_Name= user.User_Name,
-        Sponsor_Name= sponsor.Sponsor_Name,
+        Sponsor_Name= sponsor.Sponsor_Name if sponsor else "Unassigned",
         Points_Change= str(payload.points_change),
         Reason_For_Change= payload.reason,
         Created_At= datetime.now(timezone.utc),
@@ -1029,12 +1052,14 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
     session.refresh(driver)
     session.refresh(newTransaction)
 
-    create_notification(
-        session,
-        driver.UserID,
-        f"Your points changed by {payload.points_change}. New total: {driver.User_Points}",
-        "Points"
-    )
+    if driver.UserID is not None:
+        create_notification(
+            session,
+            driver.UserID,
+            f"Your points changed by {payload.points_change}. New total: {driver.User_Points}",
+            "Points"
+        )
+        session.commit()
     
     
     return({"message": "Transaction successful and log recorded."})
@@ -1146,7 +1171,10 @@ def createCart(user_id:int, session: Session = Depends(getSession)):
 
 
 
-#CSV Generators will go here
+# ------------------------
+# CSV GENERATORS
+# ------------------------
+
 
 #this generates bug report csv
 @app.get("/report/bug_report_csv")
@@ -1250,7 +1278,10 @@ def getDriverCSV(driver_id: Optional[int] = Query(None),
     filename = f"transaction_report_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return StreamingResponse(buffer, media_type="text/csv", headers=headers)
-    
+
+@app.get("/user/password_report_csv")
+def getPasswordChangeCSV(driver_: Optional[int] = Query(None)):
+    return
 
 # -------------------------
 # NOTIFICATIONS

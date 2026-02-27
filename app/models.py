@@ -1,8 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from sqlmodel import Field, SQLModel
-from datetime import datetime
-from typing import Optional
 from pydantic import BaseModel
 
 
@@ -120,8 +118,15 @@ class Notification(SQLModel, table=True):
     Message: str
     Type: str   # e.g. "Profile", "Points", "Application"
     Is_Read: bool = Field(default=False)
-    Created_At: datetime = Field(default_factory=datetime.utcnow)
+    Created_At: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    
 
+class PasswordChangeLog(SQLModel, table=True):
+    __tablename__ = "Password_Changes"
+    LogID : Optional[int] = Field(default=None, primary_key=True, unique=True)
+    UserID: Optional[int] = Field(foreign_key="User.UserID")
+    UserName: str
+    ChangedAt: datetime
 
     
 
@@ -200,7 +205,7 @@ class NewPointChange(BaseModel):
     driverID: int
     points_change: int
     reason:str
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
 # Market Payload
 
