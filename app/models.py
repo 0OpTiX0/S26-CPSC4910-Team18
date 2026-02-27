@@ -123,10 +123,23 @@ class Notification(SQLModel, table=True):
 
 class PasswordChangeLog(SQLModel, table=True):
     __tablename__ = "Password_Changes"
-    LogID : Optional[int] = Field(default=None, primary_key=True, unique=True)
-    UserID: Optional[int] = Field(foreign_key="User.UserID")
+    Log_ID : Optional[int] = Field(default=None, primary_key=True, unique=True)
+    User_Type: str
+    user_id: Optional[int] = Field(foreign_key="User.UserID")
     UserName: str
     ChangedAt: datetime
+    
+class MembershipDecisionLog(SQLModel, table=True):
+    __tablename__ = "Application_Decisions"
+    DecisionID: Optional[int] = Field(primary_key=True, default= None, unique= True)
+    Driver_ID: Optional[int] = Field(foreign_key="Driver_User.UserID")
+    Driver_Name: str
+    Decision: str
+    Reason: str
+    Sponsor: str
+    AuthorizedBy: str
+    Decision_Made_At: datetime
+    
 
     
 

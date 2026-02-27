@@ -585,6 +585,7 @@ def getAllApplications(
 def updateStatus(
     application_id: int,
     decision: Literal["Pending", "Approved", "Rejected"],
+    admin_name: str, #Every application update must be done by an admin (Sponsor User or Admin User)
     rejection_reason: Optional[str] = None,
     session: Session = Depends(getSession),
 ):
@@ -596,7 +597,10 @@ def updateStatus(
         raise HTTPException(status_code=404, detail="Application not found")
 
     application.Applicant_Status = decision
-
+    
+    
+    
+    
     if decision == "Rejected":
         application.Rejection_Reason = rejection_reason
     else:
@@ -607,13 +611,75 @@ def updateStatus(
     session.refresh(application)
 
     if decision == "Approved":
+        stmt = select(Driver_User).where(Driver_User.UserID == application.UserID)
+        driver = session.exec(stmt).first()
+        if not driver:
+            raise HTTPException(status_code=404, detail= "Driver does not exist")
+        
+        stmt = select(User).where(User.UserID == driver.UserID)
+        user = session.exec(stmt).first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User does not exist")
+        
+        stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID)
+        sponsor = session.exec(stmt).first()
+        if not sponsor:
+            raise HTTPException(status_code=404, detail="Sponsor does not exist")
+        
+        log = MembershipDecisionLog (
+            Driver_ID = driver.UserID,
+            Driver_Name = user.User_Name,
+            Decision = decision,
+            Reason = "Congratulations!",
+            Sponsor = sponsor.Sponsor_Name,
+            AuthorizedBy= admin_name,
+            Decision_Made_At= datetime.now(timezone.utc)  
+        )
+        session.add(log)
+        session.commit()
+        session.refresh(log)
+        
+        
         create_notification(
             session,
             application.UserID,
             "Your application has been approved!",
             "Application"
         )
+        
+        
     elif decision == "Rejected":
+        stmt = select(Driver_User).where(Driver_User.UserID == application.UserID)
+        driver = session.exec(stmt).first()
+        if not driver:
+            raise HTTPException(status_code=404, detail= "Driver does not exist")
+        
+        stmt = select(User).where(User.UserID == driver.UserID)
+        user = session.exec(stmt).first()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User does not exist")
+        
+        stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID)
+        sponsor = session.exec(stmt).first()
+        if not sponsor:
+            raise HTTPException(status_code=404, detail="Sponsor does not exist")
+        
+        log = MembershipDecisionLog (
+            Driver_ID = driver.UserID,
+            Driver_Name = user.User_Name,
+            Decision = decision,
+            Reason = rejection_reason or "",
+            Sponsor = sponsor.Sponsor_Name,
+            AuthorizedBy= admin_name,
+            Decision_Made_At= datetime.now(timezone.utc)  
+        )
+        session.add(log)
+        session.commit()
+        session.refresh(log)
+        
+        
         create_notification(
             session,
             application.UserID,
@@ -621,7 +687,7 @@ def updateStatus(
             "Application"
         )
 
-    return application
+    return  {"message":"Application decision updated successfully. Decision Recorded"}
 
 
 
@@ -654,6 +720,55 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
     session.commit()
     session.refresh(sponsor)
     return sponsor
+
+
+@app.patch("/admin/{sponsor_id}")
+def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(getSession)):
+    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
+    sponsor = session.exec(stmt).first()
+    
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Requested sponsor does not exist")
+    
+    if update.type.strip().lower() == "name":
+        sponsor.Sponsor_Name = update.payload
+        session.add(sponsor)
+        session.commit()
+        session.refresh(sponsor)
+    elif update.type.strip().lower() == "email":
+        sponsor.Sponsor_Email = update.payload
+        session.add(sponsor)
+        session.commit()
+        session.refresh(sponsor)
+    elif update.type.strip().lower() == "description":
+        sponsor.Sponsor_Description = update.payload
+        session.add(sponsor)
+        session.commit()
+        session.refresh(sponsor)
+    elif update.type.strip().lower() == "phone number":
+        sponsor.Sponsor_Phone_Num = update.payload
+        session.add(sponsor)
+        session.commit()
+        session.refresh(sponsor)
+    else:
+        raise HTTPException(status_code=400, detail="Unable to update sponsor. Please check input.")
+    
+    
+    return({"message":"Sponsor Updated Successfully"})
+
+
+
+@app.delete("/sponsor/{sponsor_id}")
+def deleteSponsor(sponsor_id:int, session:Session=Depends(getSession)):
+    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
+    sponsor = session.exec(stmt).first()
+    
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor does not exist")
+    
+    session.delete(sponsor)
+    session.commit()
+    return({"message":"Sponsor deleted successfully"})
     
 
 # -------------------------
@@ -802,15 +917,16 @@ def changePassword(
     session.add(user)
     session.commit()
 
-    create_notification(
-        session,
-        user.UserID,
-        "Your password was successfully changed.",
-        "Security"
-    )
+   # create_notification(
+   #     session,
+   #     user.UserID,
+   #     "Your password was successfully changed.",
+   #     "Security"
+   # )
     
     newPasswordChange = PasswordChangeLog(
-        UserID= user.UserID,
+        user_id= user.UserID,
+        User_Type= user.User_Role,
         UserName= user.User_Name,
         ChangedAt= datetime.now(timezone.utc)
     )
@@ -821,66 +937,18 @@ def changePassword(
     return {"message": "Password changed successfully"}
 
 @app.get("/log/pss_logs")
-def getAllPasswordLogs(user_id: Optional[int] = Query(None), session:Session =Depends(getSession)):
+def getAllPasswordLogs(userid: Optional[int] = Query(None), session:Session =Depends(getSession)):
     stmt = select(PasswordChangeLog)
     
-    if user_id is not None:
-        stmt = stmt.where(PasswordChangeLog.UserID == user_id)
+    if userid is not None:
+        stmt = stmt.where(PasswordChangeLog.user_id == userid)
     
-    logs = session.exec(stmt)
+    logs = session.exec(stmt).all()
     
     return logs
 
     
 
-
-@app.patch("/admin/{sponsor_id}")
-def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(getSession)):
-    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
-    sponsor = session.exec(stmt).first()
-    
-    if not sponsor:
-        raise HTTPException(status_code=404, detail="Requested sponsor does not exist")
-    
-    if update.type.strip().lower() == "name":
-        sponsor.Sponsor_Name = update.payload
-        session.add(sponsor)
-        session.commit()
-        session.refresh(sponsor)
-    elif update.type.strip().lower() == "email":
-        sponsor.Sponsor_Email = update.payload
-        session.add(sponsor)
-        session.commit()
-        session.refresh(sponsor)
-    elif update.type.strip().lower() == "description":
-        sponsor.Sponsor_Description = update.payload
-        session.add(sponsor)
-        session.commit()
-        session.refresh(sponsor)
-    elif update.type.strip().lower() == "phone number":
-        sponsor.Sponsor_Phone_Num = update.payload
-        session.add(sponsor)
-        session.commit()
-        session.refresh(sponsor)
-    else:
-        raise HTTPException(status_code=400, detail="Unable to update sponsor. Please check input.")
-    
-    
-    return({"message":"Sponsor Updated Successfully"})
-
-
-
-@app.delete("/sponsor/{sponsor_id}")
-def deleteSponsor(sponsor_id:int, session:Session=Depends(getSession)):
-    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
-    sponsor = session.exec(stmt).first()
-    
-    if not sponsor:
-        raise HTTPException(status_code=404, detail="Sponsor does not exist")
-    
-    session.delete(sponsor)
-    session.commit()
-    return({"message":"Sponsor deleted successfully"})
 
 # -------------------------
 # REPORTS
@@ -1176,9 +1244,9 @@ def createCart(user_id:int, session: Session = Depends(getSession)):
 # ------------------------
 
 
-#this generates bug report csv
+
 @app.get("/report/bug_report_csv")
-def exportReportsCsv(
+def exportReportsCSV(
     auditID: Optional[int] = Query(None),
     user: Optional[int] = Query(None),
     category: Optional[str] = Query(None),
@@ -1280,8 +1348,87 @@ def getDriverCSV(driver_id: Optional[int] = Query(None),
     return StreamingResponse(buffer, media_type="text/csv", headers=headers)
 
 @app.get("/user/password_report_csv")
-def getPasswordChangeCSV(driver_: Optional[int] = Query(None)):
-    return
+def getPasswordChangeCSV(driver_id: Optional[int] = Query(None), session: Session=Depends(getSession)):
+    stmt = select(PasswordChangeLog)
+    
+    if driver_id is not None:
+        stmt = stmt.where(PasswordChangeLog.user_id == driver_id)
+        
+    logs = session.exec(stmt).all()
+    
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    
+    writer.writerow(
+        [
+        "Log ID",
+        "User ID",
+        "User Type",
+        "User Name",
+        "Changed At"
+        ]
+    )
+    
+    for log in logs:
+        writer.writerow(
+            [
+                log.Log_ID,
+                log.user_id,
+                log.User_Type,
+                log.UserName,
+                log.ChangedAt  
+            ]
+        )
+    buffer.seek(0)
+    filename = f"password_change_report_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(buffer, media_type="text/csv", headers=headers)
+
+@app.get("/application/decision_report_csv")
+def getDecisionReportsCSV(driver_id: Optional[int]= Query(None), session: Session=Depends(getSession)):
+    stmt = select(MembershipDecisionLog)
+    if driver_id is not None:
+        stmt = stmt.where(MembershipDecisionLog.Driver_ID == driver_id)
+        
+    logs = session.exec(stmt).all()
+    
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    
+    writer.writerow(
+        [
+           "Decision ID",
+           "Driver ID",
+           "Driver Name",
+           "Decision",
+           "Reason",
+           "Sponsor",
+           "Authorized By",
+           "Decision Date"
+        ]
+    )
+    for log in logs:
+        writer.writerow(
+            [
+               log.DecisionID,
+               log.Driver_ID,
+               log.Driver_Name,
+               log.Decision,
+               log.Reason,
+               log.Sponsor,
+               log.AuthorizedBy,
+               log.Decision_Made_At 
+            ]
+        )
+    buffer.seek(0)
+    filename = f"application_decision_report_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(buffer, media_type="text/csv", headers=headers)
+
+
+# Need CSV for sales generation. Will look at once we move on market features
+
+
 
 # -------------------------
 # NOTIFICATIONS

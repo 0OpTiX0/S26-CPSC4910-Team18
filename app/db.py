@@ -43,7 +43,12 @@ DB_URL = URL.create(
         database = DB_NAME
         )
 
-engine = create_engine(DB_URL)
+engine = create_engine(
+    DB_URL,
+    pool_pre_ping=True,   # validate pooled connections before each use
+    pool_recycle=1800,    # recycle connections before common MySQL idle timeouts
+    pool_timeout=30,
+)
 
 
 try:
