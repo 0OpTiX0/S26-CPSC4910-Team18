@@ -1,0 +1,24 @@
+Requrements changes
+
+
+Drivers
+    Drivers can now have more than one sponsor.
+
+
+Sponsors
+
+    Have no ability to see what other sponsors a driver is associated with
+    Can only see the drivers for which they are the sponsors
+    Can approve or deny a driver sponsorship
+
+
+
+
+
+
+Insights
+
+- Use Postman for external API testing & Development
+- Use EBAY for external catalog (Prod. or Sandbox)
+- Research Markets to use,
+-
