@@ -19,7 +19,7 @@
 
   function getLoggedInEmail() {
     try {
-      const u = JSON.parse(localStorage.getItem("gd_user") || "null");
+      const u = JSON.parse(sessionStorage.getItem("gd_user") || "null");
       return u?.email || "";
     } catch { return ""; }
   }
@@ -50,7 +50,7 @@
       }
 
       setStatus("Password updated! Redirecting to login…");
-      localStorage.removeItem("gd_user");
+      sessionStorage.removeItem("gd_user");
       setTimeout(() => window.location.href = "login.html", 800);
     } catch (err) {
       setStatus("Password update failed. Please try again.", true);

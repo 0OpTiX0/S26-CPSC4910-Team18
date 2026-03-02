@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const listContainer = document.getElementById('applications-list');
-    const storedUser = JSON.parse(localStorage.getItem('gd_user'));
+    const storedUser = JSON.parse(sessionStorage.getItem('gd_user'));
 
     if (!storedUser) 
     {

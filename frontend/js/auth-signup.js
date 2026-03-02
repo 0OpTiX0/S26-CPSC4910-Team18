@@ -56,7 +56,7 @@
     else setFieldError(emailError, "");
 
     const pw = password?.value || "";
-    if (pw.length < 8) { setFieldError(passwordError, "Password must be at least 8 characters."); ok = false; }
+    if (pw.length < 8) { setFieldError(passwordError, "Password must be at least 8 characters and contain 1 number and special character."); ok = false; }
     else setFieldError(passwordError, "");
 
     if ((confirmPassword?.value || "") !== pw) { setFieldError(confirmError, "Passwords do not match."); ok = false; }

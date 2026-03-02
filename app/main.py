@@ -622,7 +622,7 @@ def updateStatus(
         if not user:
             raise HTTPException(status_code=404, detail="User does not exist")
         
-        stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID)
+        stmt = select(Sponsor).where(Sponsor.Sponsor_ID == application.Sponsor_ID)
         sponsor = session.exec(stmt).first()
         if not sponsor:
             raise HTTPException(status_code=404, detail="Sponsor does not exist")
@@ -661,7 +661,7 @@ def updateStatus(
         if not user:
             raise HTTPException(status_code=404, detail="User does not exist")
         
-        stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID)
+        stmt = select(Sponsor).where(Sponsor.Sponsor_ID == application.Sponsor_ID)
         sponsor = session.exec(stmt).first()
         if not sponsor:
             raise HTTPException(status_code=404, detail="Sponsor does not exist")

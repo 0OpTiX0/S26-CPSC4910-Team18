@@ -9,7 +9,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const storedUser =
-    safeParse(localStorage.getItem("gd_user")) ||
     safeParse(sessionStorage.getItem("gd_user"));
 
   const navGuest = document.getElementById("nav-guest");
@@ -43,6 +42,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const role = (storedUser.role || "").toLowerCase();
   applyRolePermissions(role);
 
+  // 🔔 Notifications (only if notifications.js is loaded)
+  if (window.GDNotifications?.renderBell) {
+    window.GDNotifications.renderBell();
+  }
   // Driver points UI (only if present)
   if (role === "driver") {
     const points = storedUser.points || 0;
@@ -86,12 +89,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Logout clears both storages
   document.getElementById("logout-btn")?.addEventListener("click", () => {
-    localStorage.removeItem("gd_user");
     sessionStorage.removeItem("gd_user");
     window.location.href = "index.html";
   });
-
-  // frontend/js/navbar.js
 
   async function updatePointsDisplay(userId) {
     try {
@@ -118,7 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
   if (storedUser && storedUser.role === "driver") {
       const checkConfigAndLoad = () => {
         if (typeof CONFIG !== 'undefined') {
-            updatePointsDisplay(storedUser.id);
+            updatePointsDisplay(storedUser.userId);
         } else {
             setTimeout(checkConfigAndLoad, 100);
         }

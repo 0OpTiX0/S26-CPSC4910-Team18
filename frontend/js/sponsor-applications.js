@@ -17,12 +17,10 @@
   document.getElementById("reject-confirm")?.addEventListener("click", async () => {
     const reason = getRejectReason();
     if (!reason) return;
-    if (!pendingRejectAppId) return;
+    if (!pendingRejectApp?.ApplicationID) return;
 
     try {
-      // Frontend-only requirement: force a reason before rejecting.
-      // We cannot guarantee backend stores it without backend changes.
-      await decide(pendingRejectAppId, "Rejected");
+      await decide(pendingRejectApp, "Rejected", reason);
       closeRejectModal();
       await load(); // refresh list
     } catch (e) {
@@ -58,7 +56,7 @@
   }
 
   function getSession() {
-    try { return JSON.parse(localStorage.getItem("gd_user") || "null"); } catch { return null; }
+    try { return JSON.parse(sessionStorage.getItem("gd_user") || "null"); } catch { return null; }
   }
 
   function requireSponsor(session) {
@@ -66,10 +64,10 @@
     return role === "sponsor" || role === "sponsor_user";
   }
 
-  let pendingRejectAppId = null;
+  let pendingRejectApp = null;
 
-  function openRejectModal(appId) {
-    pendingRejectAppId = appId;
+  function openRejectModal(app) {
+    pendingRejectApp = app;
 
     const modal = document.getElementById("reject-modal");
     const reasonEl = document.getElementById("reject-reason");
@@ -84,7 +82,7 @@
   }
 
   function closeRejectModal() {
-    pendingRejectAppId = null;
+    pendingRejectApp = null;
     const modal = document.getElementById("reject-modal");
     if (modal) modal.classList.add("hidden");
   }
@@ -182,25 +180,66 @@
 
       // Action handlers (uses existing PATCH /application/{id}?decision=...)
       card.querySelector('[data-act="approve"]')?.addEventListener("click", async () => {
-        await decide(a?.ApplicationID, "Approved");
+        await decide(a, "Approved");
       });
       card.querySelector('[data-act="reject"]')?.addEventListener("click", async () => {
-        openRejectModal(a?.ApplicationID);
+        openRejectModal(a);
       });
 
       listEl.appendChild(card);
     }
   }
 
-  async function decide(applicationId, decision) {
-    if (!applicationId) return;
+  async function decide(app, decision, rejectionReason = "") {
+    const applicationId = app?.ApplicationID;
+    if (!applicationId || !decision) return;
+
+    const session = getSession();
+
     try {
       setStatus(`${decision}…`);
-      await window.API.request(`/application/${applicationId}?decision=${encodeURIComponent(decision)}`, {
+
+      // Resolve the real sponsor from sponsor_user
+      const sponsor = await window.API.request(
+        `/sponsor-user/resolve?email=${encodeURIComponent(session.email)}`
+      );
+
+      // 👇 Use Sponsor_Name ONLY
+      const adminName =
+        (sponsor?.Sponsor_Name || sponsor?.sponsor_name || "").trim() ||
+        "Sponsor";
+
+      const qs = new URLSearchParams();
+      qs.set("decision", decision);
+      qs.set("admin_name", adminName);
+
+      if (decision === "Rejected") {
+        qs.set("rejection_reason", rejectionReason || "");
+      }
+
+      await window.API.request(`/application/${applicationId}?${qs.toString()}`, {
         method: "PATCH",
       });
+
+      // If approved, enroll the driver with this sponsor using PATCH /driver
+      if (decision === "Approved") {
+        const driverId = app?.UserID;
+        const sponsorId = app?.Sponsor_ID;
+        if (driverId && sponsorId) {
+          await window.API.request("/driver", {
+            method: "PATCH",
+            body: {
+              driver_id: driverId,
+              sponsor_id: sponsorId,
+            },
+          });
+        }
+      }
+
+
       setStatus(`Application ${decision.toLowerCase()} successfully.`);
       await load();
+
     } catch (err) {
       console.error(err);
       setStatus("Could not update application status.", true);
@@ -279,7 +318,7 @@
   });
 
   logoutBtn?.addEventListener("click", () => {
-    localStorage.removeItem("gd_user");
+    sessionStorage.removeItem("gd_user");
     window.location.href = "login.html";
   });
 

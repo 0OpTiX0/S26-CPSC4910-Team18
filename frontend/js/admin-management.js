@@ -5,7 +5,7 @@ function safeParse(s) {
 }
 
 function getStoredUser() {
-  return safeParse(localStorage.getItem("gd_user")) || safeParse(sessionStorage.getItem("gd_user"));
+  return safeParse(safeParse(sessionStorage.getItem("gd_user"));
 }
 
 function showMsg(el, msg, ok = true) {

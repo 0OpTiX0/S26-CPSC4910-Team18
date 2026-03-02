@@ -55,7 +55,7 @@
       });
 
       // Store session
-      localStorage.setItem(
+      sessionStorage.setItem(
         "gd_user",
         JSON.stringify({
           userId: data.userId,

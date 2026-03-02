@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 1. Load the sponsors from the database immediately on page load
     loadSponsors();
 
-    const user = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user"));
+    const user = JSON.parse(sessionStorage.getItem("gd_user"));
 
     // 2. Handle the "Apply" button clicks using Event Delegation
     document.addEventListener("click", async (e) => {

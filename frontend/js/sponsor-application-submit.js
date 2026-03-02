@@ -1,7 +1,7 @@
 // js/sponsor-application-submit.js
 document.addEventListener("DOMContentLoaded", () => {
   const applyButtons = document.querySelectorAll(".apply-btn");
-  const user = JSON.parse(localStorage.getItem("gd_user"));
+  const user = JSON.parse(sessionStorage.getItem("gd_user"));
 
   applyButtons.forEach(button => {
     button.addEventListener("click", async (e) => {

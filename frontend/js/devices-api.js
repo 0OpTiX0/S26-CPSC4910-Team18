@@ -17,7 +17,7 @@
   };
 
   const getUser = () => {
-    try { return JSON.parse(localStorage.getItem("gd_user") || "null"); } catch { return null; }
+    try { return JSON.parse(sessionStorage.getItem("gd_user") || "null"); } catch { return null; }
   };
 
   (async () => {
@@ -35,7 +35,7 @@
   const logoutBtn = document.getElementById("logout-this");
   if (logoutBtn) {
     logoutBtn.addEventListener("click", () => {
-      localStorage.removeItem("gd_user");
+      sessionStorage.removeItem("gd_user");
       window.location.href = "login.html";
     });
   }
