@@ -1235,7 +1235,73 @@ def createCart(user_id:int, session: Session = Depends(getSession)):
     
     if not user:
         raise HTTPException(status_code=404, detail="User Not Found!")
+    
+@app.delete("/cart/{driver_id}")
+def deleteCart(driver_id : int, cart_id : int, session: Session = Depends(getSession)):
+    cart = session.exec(select(Cart).where(Cart.DriverID == driver_id)).first()
 
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart Not Found /W DriverID!")
+    
+    cart = session.exec(select(Cart).where(Cart.CartID == cart_id)).first()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart Not Found /W CartID!")
+    
+    session.delete(cart)
+    session.commit()
+
+    return({"message":"Cart Deleted Successfully"})
+
+@app.delete("/cart/{driver_id}/{cart_item_id}")
+def deleteCartItem(cart_id : int, cart_item_id : int, session: Session = Depends(getSession)):
+    cart_item = session.exec(select(CartItem).where(CartItem.CartID == cart_id)).first()
+
+    if not cart_item:
+        raise HTTPException(status_code=404, detail="CartItem Not Found /W CartID!")
+    
+    cart_item = session.exec(select(CartItem).where(CartItem.Cart_Item_ID == cart_item_id)).first()
+
+    if not cart_item:
+        raise HTTPException(status_code=404, detail="CartItem Not Found /W CartItemID!")
+    
+    session.delete(cart_item)
+    session.commit()
+
+    return({"message":"Cart Item Deleted Successfully"})
+
+@app.patch("/cart/{driver_id}")
+def updateCart(driver_id : int, payload : UpdateCart, session: Session = Depends(getSession)):
+    cart = session.exec(select(Cart).where(Cart.DriverID == driver_id)).first()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart Not Found /W DriverID!")
+    
+    cart = session.exec(select(Cart).where(Cart.CartID == payload.cart_id)).first()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart Not Found /W CartID!")
+    
+    cart_item = session.exec(select(CartItem).where(CartItem.CartID == cart.CartID)).first()
+
+    if not cart_item:
+        raise HTTPException(status_code=404, detail="CartItem Not Found /W CartID!")
+    
+    cart_item = session.exec(select(CartItem).where(CartItem.Cart_Item_ID == payload.cart_item_id)).first()
+
+    if not cart_item:
+        raise HTTPException(status_code=404, detail="CartItem Not Found /W CartItemID!")
+    
+    cart_item.ProdID = payload.prod_id
+
+    if payload.prod_qty:
+        cart_item.Prod_Qty = payload.prod_qty
+    
+    session.add(cart_item)
+    session.commit()
+    session.refresh(cart_item)
+
+    return cart_item
 
 
 # ------------------------

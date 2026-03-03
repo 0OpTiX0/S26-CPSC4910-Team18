@@ -229,3 +229,11 @@ class MarketCreate(BaseModel):
 class EnrollDriver(BaseModel):
     driver_id: int
     sponsor_id: int
+
+# Cart Payload
+
+class UpdateCart(BaseModel):
+    cart_id : int
+    cart_item_id : int
+    prod_id : int
+    prod_qty : Optional[int] = None
