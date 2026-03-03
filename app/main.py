@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlmodel import select, Session, delete
-from sqlalchemy import func  # <-- IMPORTANT (fixes your func NameError)
+from sqlalchemy import func, desc  
 from encrypt import encryptString, verifyPassword, generate_verification_code
 from datetime import datetime, timezone, timedelta
 from mailTo import emailSponsor, passwordResetEmail
@@ -321,8 +321,6 @@ def resolveSponsorForSponsorUser(email: str, session: Session = Depends(getSessi
         raise HTTPException(status_code=404, detail="Sponsor not found for this sponsor user email")
     return sponsor
 
-
-
 @app.get("/sponsors")
 def getSponsors(
     session: Session = Depends(getSession),
@@ -366,6 +364,7 @@ def getDrivers(
 
     drivers = session.exec(stmt).all()
     return drivers
+
 
 
 @app.patch("/driver")
@@ -1439,7 +1438,7 @@ def getNotifications(user_id: int, session: Session = Depends(getSession)):
     notifications = session.exec(
         select(Notification)
         .where(Notification.UserID == user_id)
-        .order_by(Notification.Created_At.desc())
+        .order_by(desc(Notification.Created_At))
     ).all()
 
     return notifications
@@ -1463,9 +1462,24 @@ def markAsRead(notification_id: int, session: Session = Depends(getSession)):
 
     
  
-#@app.patch("/cart/{cart_id}")
-#def updateOrderStatus(cart_id: int):
+# ------------------------
+#  MARKET ENDPOINTS
+# ------------------------
 
-#@app.delete("/cart/{cart_id}")
-#def deleteOrder(cart_id: int)   
+#gets all products for a specific market
+@app.get("/products/{market_id}")
+def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), session: Session = Depends(getSession)):
     
+    stmt = select(Market).where(Market.Market_ID == market_id)
+    
+    market = session.exec(stmt).all()
+    
+    if not market:
+        raise HTTPException(status_code=404, detail="Sponsor Market not found!")
+    
+    stmt = select(Product).where(Product.MarketID == market_id)
+    
+    products = session.exec(stmt).all()
+    
+    return products
+ 
