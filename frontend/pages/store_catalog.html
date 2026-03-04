@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script src="/config.js"></script>
+    <script src="../config.js"></script>
 <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Store Catalog - Good Driver</title>
@@ -33,6 +33,16 @@
             <span class="text-[10px] font-black text-blue-400 uppercase tracking-tighter">Your Balance</span>
             <span id="display-points" class="font-black text-blue-700">0</span>
         </div>
+
+        <a href="cart.html" class="relative group p-2 bg-slate-100 hover:bg-slate-900 rounded-xl transition-all duration-300">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-600 group-hover:text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+            <span id="cart-count-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white">
+                0
+            </span>
+        </a>
+
       </div>
     </div>
   </header>
@@ -46,14 +56,13 @@
         </p>
     </div>
 
-    <div class="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-20 text-center">
-        <div class="mt-8">
-            <a href="index.html" class="inline-flex items-center text-sm font-bold text-blue-600 hover:gap-2 transition-all">
-                ← Back to Dashboard
-            </a>
+    <div id="catalog-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div class="p-12 text-center col-span-full">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mb-4"></div>
+            <p class="text-slate-500 font-medium">Loading catalog...</p>
         </div>
     </div>
-
+    
   </main>
 
   <script src="../js/api.js"></script>
