@@ -1123,7 +1123,7 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
         create_notification(
             session,
             driver.UserID,
-            f"Your points changed by {payload.points_change}. New total: {driver.User_Points}",
+            f"Your points changed by {payload.points_change}. Reason: {payload.reason}. New total: {driver.User_Points}",
             "Points"
         )
         session.commit()
