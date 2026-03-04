@@ -1504,7 +1504,7 @@ def getNotifications(user_id: int, session: Session = Depends(getSession)):
     notifications = session.exec(
         select(Notification)
         .where(Notification.UserID == user_id)
-        .order_by(desc(Notification.Created_At))
+        .order_by(Notification.Created_At.desc())
     ).all()
 
     return notifications
@@ -1532,6 +1532,14 @@ def markAsRead(notification_id: int, session: Session = Depends(getSession)):
 #  MARKET ENDPOINTS
 # ------------------------
 
+#Adds items to sponsor market
+
+@app.post("/products/{market_id}")
+def addProductsToMarket():
+    return ""
+
+
+
 #gets all products for a specific market
 @app.get("/products/{market_id}")
 def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), session: Session = Depends(getSession)):
@@ -1544,6 +1552,10 @@ def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), se
         raise HTTPException(status_code=404, detail="Sponsor Market not found!")
     
     stmt = select(Product).where(Product.MarketID == market_id)
+
+    if product_name is not None:
+        stmt = stmt.where(func.lower(Product.ProductName).like(f"%{product_name.lower()}%"))
+    
     
     products = session.exec(stmt).all()
     
