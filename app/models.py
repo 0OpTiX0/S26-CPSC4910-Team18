@@ -33,14 +33,20 @@ class Sponsor(SQLModel, table=True):
     Sponsor_Email : str = Field(unique=True)
     Sponsor_Phone_Num : str = Field(unique=True)
 
-class Driver_User(SQLModel, table = True):
+class Driver_User(SQLModel, table=True):
     __tablename__ = "Driver_User"
-    UserID : Optional[int] = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
-    Sponsor_ID : Optional[int] = Field(foreign_key="Sponsor.Sponsor_ID")
-    User_Points : int = Field(default=0)
+
+    Driver_ID: Optional[int] = Field(default=None, primary_key=True)
+
+    User_ID: Optional[int] = Field(default=None, foreign_key="User.UserID")
+    Sponsor_ID: Optional[int] = Field(default=None, foreign_key="Sponsor.Sponsor_ID")
+    Driver_Name: str
+    User_Points: int = Field(default=0)
     Is_Suspended: bool = Field(default=False)
     Suspension_Reason: Optional[str] = None
     Suspension_Until: Optional[datetime] = None
+    
+    
 
 class Sponsor_User(SQLModel, table=True):
     __tablename__ = "Sponsor_User"
@@ -162,8 +168,7 @@ class LoginRequest(BaseModel):
     email: str
     password: str
     
-class DeleteRequest(BaseModel):
-    target: str
+
     
 class ApplicationRequest(BaseModel):
     appEmail: str
@@ -229,6 +234,7 @@ class MarketCreate(BaseModel):
 class EnrollDriver(BaseModel):
     driver_id: int
     sponsor_id: int
+    
 
 # Cart Payload
 

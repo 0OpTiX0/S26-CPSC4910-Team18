@@ -138,13 +138,13 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
     session.refresh(user)
     
     if (payload.role).lower() == "driver":
-        stmt = select(Driver_User).where(Driver_User.UserID == user.UserID)
+        stmt = select(Driver_User).where(Driver_User.User_ID == user.UserID)
         driver = session.exec(stmt).first()
         if driver:
             raise HTTPException(status_code= 400, detail="Driver already registered!")
         
         newDriver = Driver_User(
-            UserID= user.UserID,
+            User_ID= user.UserID,
             Sponsor_ID = None,
             User_Points= 0  
         )
@@ -211,9 +211,9 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
     return {"userId": user.UserID, "role": user.User_Role, "email": user.User_Email}
 
 
-@app.delete("/user")
-def deleteUser(payload: DeleteRequest, session: Session = Depends(getSession)):
-    user = session.exec(select(User).where(User.User_Name == payload.target)).first()
+@app.delete("/user/{user_id}")
+def deleteUser(user_id: int, session: Session = Depends(getSession)):
+    user = session.exec(select(User).where(User.UserID == user_id)).first()
     if not user:
         raise HTTPException(status_code=404, detail="User does not exist")
 
@@ -348,6 +348,9 @@ def driverLoginAttempts(driver_email : str, session : Session = Depends(getSessi
     return log_in_attempts
 
 
+
+
+
 @app.get("/driver")
 def getDrivers(
     user_id: Optional[int] = Query(None),
@@ -357,7 +360,7 @@ def getDrivers(
     stmt = select(Driver_User)
 
     if user_id is not None:
-        stmt = stmt.where(Driver_User.UserID == user_id)
+        stmt = stmt.where(Driver_User.User_ID == user_id)
 
     if driver_sponsor_id is not None:
         stmt = stmt.where(Driver_User.Sponsor_ID == driver_sponsor_id)
@@ -369,7 +372,7 @@ def getDrivers(
 
 @app.patch("/driver")
 def enrollDriverWithSponsor(payload: EnrollDriver, session: Session = Depends(getSession)):
-    stmt = select(Driver_User).where(Driver_User.UserID == payload.driver_id)
+    stmt = select(Driver_User).where(Driver_User.User_ID == payload.driver_id)
     driver = session.exec(stmt).first()
 
     if not driver:
@@ -381,13 +384,33 @@ def enrollDriverWithSponsor(payload: EnrollDriver, session: Session = Depends(ge
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found!")
 
-    driver.Sponsor_ID = sponsor.Sponsor_ID
 
-    session.add(driver)
+    stmt = select(Driver_User).where(
+       Driver_User.Driver_Name == driver.Driver_Name,
+       Driver_User.Sponsor_ID == sponsor.Sponsor_ID
+    )
+
+    existingDriver = session.exec(stmt).first()
+    
+    if existingDriver:
+        raise HTTPException(status_code=400, detail= f"Driver {driver.Driver_Name} is already enrolled at {sponsor.Sponsor_Name}.")
+    
+    newEnrolledDriver = Driver_User(
+        User_ID= payload.driver_id,
+        Sponsor_ID= payload.sponsor_id,
+        Driver_Name= driver.Driver_Name
+    )
+    
+    session.add(newEnrolledDriver)
     session.commit()
-    session.refresh(driver)
+    session.refresh(newEnrolledDriver)
+
 
     return {"message": "Driver successfully enrolled in the program!"}
+
+
+
+
 
 @app.delete("/sponsors/drop_driver")
 def dropDriver(
@@ -406,7 +429,7 @@ def dropDriver(
     if not s_stmt:
         raise HTTPException(status_code=404, detail="Sponsor does not exist")
 
-    stmt = session.exec(select(Driver_User).where(Driver_User.UserID == u_stmt, Driver_User.Sponsor_ID == s_stmt)).first()
+    stmt = session.exec(select(Driver_User).where(Driver_User.User_ID == u_stmt, Driver_User.Sponsor_ID == s_stmt)).first()
     if not stmt:
         raise HTTPException(status_code=404, detail="Driver does not exist")
     
@@ -438,7 +461,7 @@ def suspendDriver(
         raise HTTPException(status_code=404, detail="Driver not found")
 
     driver = session.exec(
-        select(Driver_User).where(Driver_User.UserID == driver_user_id,Driver_User.Sponsor_ID == sponsor.Sponsor_ID)).first()
+        select(Driver_User).where(Driver_User.User_ID == driver_user_id,Driver_User.Sponsor_ID == sponsor.Sponsor_ID)).first()
 
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not linked to this sponsor")
@@ -488,7 +511,7 @@ def getPartneredDrivers(
 
     results = session.exec(
         select(User, Driver_User)
-        .join(Driver_User, User.UserID == Driver_User.UserID)
+        .join(Driver_User, Driver_User.User_ID == User.UserID)
         .where(Driver_User.Sponsor_ID == sponsor.Sponsor_ID)
     ).all()
 
@@ -610,12 +633,12 @@ def updateStatus(
     session.refresh(application)
 
     if decision == "Approved":
-        stmt = select(Driver_User).where(Driver_User.UserID == application.UserID)
+        stmt = select(Driver_User).where(Driver_User.User_ID == application.UserID)
         driver = session.exec(stmt).first()
         if not driver:
             raise HTTPException(status_code=404, detail= "Driver does not exist")
         
-        stmt = select(User).where(User.UserID == driver.UserID)
+        stmt = select(User).where(User.UserID == driver.User_ID)
         user = session.exec(stmt).first()
         
         if not user:
@@ -627,7 +650,7 @@ def updateStatus(
             raise HTTPException(status_code=404, detail="Sponsor does not exist")
         
         log = MembershipDecisionLog (
-            Driver_ID = driver.UserID,
+            Driver_ID = driver.User_ID,
             Driver_Name = user.User_Name,
             Decision = decision,
             Reason = "Congratulations!",
@@ -649,12 +672,12 @@ def updateStatus(
         
         
     elif decision == "Rejected":
-        stmt = select(Driver_User).where(Driver_User.UserID == application.UserID)
+        stmt = select(Driver_User).where(Driver_User.User_ID == application.UserID)
         driver = session.exec(stmt).first()
         if not driver:
             raise HTTPException(status_code=404, detail= "Driver does not exist")
         
-        stmt = select(User).where(User.UserID == driver.UserID)
+        stmt = select(User).where(User.UserID == driver.User_ID)
         user = session.exec(stmt).first()
         
         if not user:
@@ -666,7 +689,7 @@ def updateStatus(
             raise HTTPException(status_code=404, detail="Sponsor does not exist")
         
         log = MembershipDecisionLog (
-            Driver_ID = driver.UserID,
+            Driver_ID = driver.User_ID,
             Driver_Name = user.User_Name,
             Decision = decision,
             Reason = rejection_reason or "",
@@ -708,6 +731,13 @@ def deleteApp(payload: AppDeleteReq, session: Session = Depends(getSession)):
 
 @app.post("/sponsor")
 def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)):
+    
+    stmt = select(Sponsor).where(Sponsor.Sponsor_Name == payload.name)
+    existingSponsor = session.exec(stmt)
+    
+    if existingSponsor:
+        raise HTTPException(status_code= 400, detail="This sponsor already exists!")
+    
     sponsor = Sponsor(
         Sponsor_Name=payload.name,
         Sponsor_Description=payload.description,
@@ -715,6 +745,7 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
         Sponsor_Phone_Num=payload.phone,
     )
 
+    
     session.add(sponsor)
     session.commit()
     session.refresh(sponsor)
@@ -1049,7 +1080,7 @@ def resolveReport(report_id:int, session:Session = Depends(getSession)):
 # Gets all transaction reports for a single driver
 @app.get("/report/transaction/{driver_id}")
 def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
-    stmt = select(Driver_User).where(Driver_User.UserID == driver_id)
+    stmt = select(Driver_User).where(Driver_User.User_ID == driver_id)
     driver = session.exec(stmt).first()
 
     if not driver:
@@ -1068,7 +1099,7 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
 #Gets a drivers user points to redeem
 @app.get("/points/{user_id}")
 def getDriverPoints(user_id: int ,session:Session=Depends(getSession)):
-    stmt = select(Driver_User).where(Driver_User.UserID == user_id)
+    stmt = select(Driver_User).where(Driver_User.User_ID == user_id)
     
     driver = session.exec(stmt).first()
     
@@ -1080,14 +1111,14 @@ def getDriverPoints(user_id: int ,session:Session=Depends(getSession)):
 #Adds or subtracts points while also creating a transaction report
 @app.patch("/points")
 def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
-    stmt = select(Driver_User).where(Driver_User.UserID == payload.driverID)
+    stmt = select(Driver_User).where(Driver_User.User_ID == payload.driverID)
     
     driver = session.exec(stmt).first()
     
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found!")
     
-    u_stmt = select(User).where(User.UserID == driver.UserID)
+    u_stmt = select(User).where(User.UserID == driver.User_ID)
     sponsor = None
     if driver.Sponsor_ID is not None:
         s_stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID)
@@ -1119,10 +1150,10 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
     session.refresh(driver)
     session.refresh(newTransaction)
 
-    if driver.UserID is not None:
+    if driver.User_ID is not None:
         create_notification(
             session,
-            driver.UserID,
+            driver.User_ID,
             f"Your points changed by {payload.points_change}. Reason: {payload.reason}. New total: {driver.User_Points}",
             "Points"
         )
@@ -1211,7 +1242,7 @@ def deleteMarket(market_id : int, session: Session = Depends(getSession)):
 def getCart(driver_id:int, 
             status: Optional[str] = Query(None),
             session:Session = Depends(getSession)):
-    stmt = select(Driver_User).where(Driver_User.UserID == driver_id)
+    stmt = select(Driver_User).where(Driver_User.User_ID == driver_id)
     driver = session.exec(stmt).first()
     
     if not driver:
