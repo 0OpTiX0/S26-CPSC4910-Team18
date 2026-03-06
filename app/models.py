@@ -36,10 +36,7 @@ class Sponsor(SQLModel, table=True):
 class Driver_User(SQLModel, table=True):
     __tablename__ = "Driver_User"
 
-    Driver_ID: Optional[int] = Field(default=None, primary_key=True)
-
-    User_ID: Optional[int] = Field(default=None, foreign_key="User.UserID")
-    Sponsor_ID: Optional[int] = Field(default=None, foreign_key="Sponsor.Sponsor_ID")
+    Registered_Driver: Optional[int] = Field(default=None, foreign_key="User.UserID", primary_key=True)
     Driver_Name: str
     User_Points: int = Field(default=0)
     Is_Suspended: bool = Field(default=False)
@@ -53,6 +50,8 @@ class Sponsor_User(SQLModel, table=True):
     UserID : Optional[int] = Field(unique=True, primary_key=True, default=None, foreign_key="User.UserID")
     Sponsor_ID : int = Field(foreign_key="Sponsor.Sponsor_ID")
 
+
+
 class Driver_Application(SQLModel, table=True):
     __tablename__ = "Driver_Application"
     ApplicationID: Optional[int] = Field(unique=True, primary_key=True, default=None)
@@ -63,7 +62,7 @@ class Driver_Application(SQLModel, table=True):
     Applicant_Status : str
     Rejection_Reason : Optional[str] = None
     Submitted_At : datetime
-    
+
 
 class UserReports(SQLModel, table=True):
    __tablename__ = "Reports"
@@ -76,10 +75,12 @@ class UserReports(SQLModel, table=True):
    Status: str
 
 
+
+
 class Point_Transaction(SQLModel, table=True):
     __tablename__="Point_Transaction"
     TransactionID: Optional[int] = Field(unique=True, primary_key=True, default=None)
-    Driver_User_ID : Optional[int] = Field(foreign_key="Driver_User.UserID")
+    Driver_User_ID : Optional[int] = Field(foreign_key="Driver_User.Registered_Driver")
     Driver_Name: str
     Sponsor_Name: str
     Points_Change: str
@@ -92,7 +93,7 @@ class Point_Transaction(SQLModel, table=True):
 class Cart(SQLModel, table=True):
     __tablename__ ="Cart"
     CartID : Optional[int] = Field(unique=True, primary_key=True)
-    DriverID: Optional[int] = Field(foreign_key="Driver_User.UserID")
+    DriverID: Optional[int] = Field(foreign_key="Driver_User.Registered_Driver")
     Status: str
     Created_At: datetime
     Checked_Out_At: datetime
@@ -138,13 +139,21 @@ class PasswordChangeLog(SQLModel, table=True):
 class MembershipDecisionLog(SQLModel, table=True):
     __tablename__ = "Application_Decisions"
     DecisionID: Optional[int] = Field(primary_key=True, default= None, unique= True)
-    Driver_ID: Optional[int] = Field(foreign_key="Driver_User.UserID")
+    Driver_ID: Optional[int] = Field(foreign_key="Driver_User.Registered_Driver")
     Driver_Name: str
     Decision: str
     Reason: str
     Sponsor: str
     AuthorizedBy: str
     Decision_Made_At: datetime
+    
+
+class Sponsorship(SQLModel, table=True):
+    __tablename__ = "Sponsorships"
+    Driver_User_ID: Optional[int] = Field(primary_key=True, foreign_key="Driver_User.Registered_Driver")
+    Sponsor_ID: Optional[int] = Field(primary_key=True, foreign_key="Sponsor.Sponsor_ID")
+    Membership_Status: str
+    Member_Since: datetime
     
 
     
