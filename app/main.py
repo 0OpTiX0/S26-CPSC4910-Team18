@@ -7,6 +7,7 @@ from encrypt import encryptString, verifyPassword, generate_verification_code
 from datetime import datetime, timezone, timedelta
 from mailTo import emailSponsor, passwordResetEmail
 from typing import Optional, Literal
+from getEbayProduct import getEbayProduct
 import csv
 import io
 import os
@@ -1100,59 +1101,61 @@ def getDriverPoints(user_id: int ,session:Session=Depends(getSession)):
     
     return driver.User_Points
     
-#Adds or subtracts points while also creating a transaction report
-@app.patch("/points")
-def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
-    stmt = select(Driver_User).where(Driver_User.Registered_Driver == payload.driverID)
-    
-    driver = session.exec(stmt).first()
-    
-    if not driver:
-        raise HTTPException(status_code=404, detail="Driver not found!")
-    
-    u_stmt = select(User).where(User.UserID == driver.User_ID)
-    sponsor = None
-    if driver.Sponsor_ID is not None:
-        s_stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID)
-        sponsor = session.exec(s_stmt).first()
-    
-    user = session.exec(u_stmt).first()
+# #Adds or subtracts points while also creating a transaction report
+#Joseph-> Ive gotta fix this endpoint so that it is compatable with the new schema
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if driver.Is_Suspended:
-        raise HTTPException(status_code=403, detail="Driver is suspended")
-
-    driver.User_Points += payload.points_change
-    
-    
-    newTransaction = Point_Transaction(
-        Driver_User_ID= payload.driverID,
-        Driver_Name= user.User_Name,
-        Sponsor_Name= sponsor.Sponsor_Name if sponsor else "Unassigned",
-        Points_Change= str(payload.points_change),
-        Reason_For_Change= payload.reason,
-        Created_At= datetime.now(timezone.utc),
-        Points_After_Change= driver.User_Points
-    )
-    
-    session.add(driver)
-    session.add(newTransaction)
-    session.commit()          
-    session.refresh(driver)
-    session.refresh(newTransaction)
-
-    if driver.User_ID is not None:
-        create_notification(
-            session,
-            driver.User_ID,
-            f"Your points changed by {payload.points_change}. Reason: {payload.reason}. New total: {driver.User_Points}",
-            "Points"
-        )
-        session.commit()
-    
-    
-    return({"message": "Transaction successful and log recorded."})
+# @app.patch("/points")
+# def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
+#     stmt = select(Driver_User).where(Driver_User.Registered_Driver == payload.driverID)
+#     
+#     driver = session.exec(stmt).first()
+#     
+#     if not driver:
+#         raise HTTPException(status_code=404, detail="Driver not found!")
+#     
+#     u_stmt = select(User).where(User.UserID == driver.User_ID)
+#     sponsor = None
+#     if driver.Sponsor_ID is not None:
+#         s_stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID)
+#         sponsor = session.exec(s_stmt).first()
+#     
+#     user = session.exec(u_stmt).first()
+#
+#     if not user:
+#         raise HTTPException(status_code=404, detail="User not found")
+#     if driver.Is_Suspended:
+#         raise HTTPException(status_code=403, detail="Driver is suspended")
+#
+#     driver.User_Points += payload.points_change
+#     
+#     
+#     newTransaction = Point_Transaction(
+#         Driver_User_ID= payload.driverID,
+#         Driver_Name= user.User_Name,
+#         Sponsor_Name= sponsor.Sponsor_Name if sponsor else "Unassigned",
+#         Points_Change= str(payload.points_change),
+#         Reason_For_Change= payload.reason,
+#         Created_At= datetime.now(timezone.utc),
+#         Points_After_Change= driver.User_Points
+#     )
+#     
+#     session.add(driver)
+#     session.add(newTransaction)
+#     session.commit()          
+#     session.refresh(driver)
+#     session.refresh(newTransaction)
+#
+#     if driver.Registered_Driver is not None:
+#         create_notification(
+#             session,
+#             driver.Registered_Driver,
+#             f"Your points changed by {payload.points_change}. Reason: {payload.reason}. New total: {driver.User_Points}",
+#             "Points"
+#         )
+#         session.commit()
+#     
+#     
+#     return({"message": "Transaction successful and log recorded."})
 
 #Deletes a transaction log
 @app.delete("/transaction/{transaction_id}")
@@ -1250,37 +1253,37 @@ def getCart(driver_id:int,
     return cart
 
 
-from pydantic import BaseModel
+# Joseph: Gabe, please patch this endpoint so that it works with the new schema. 
 
-@app.post("/cart/{user_id}")
-def createCart(user_id: int, payload: AddToCart, session: Session = Depends(getSession)):
-    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == user_id)).first()
-    
-    cart = session.exec(select(Cart).where(Cart.DriverID == user_id, Cart.Status == "Pending")).first()
-    
-    if not cart:
-        cart = Cart(
-            DriverID=user_id,
-            Status="Pending",
-            Created_At=datetime.now(timezone.utc),
-            Checked_Out_At=datetime.now(timezone.utc) 
-        )
-        session.add(cart)
-        session.commit()
-        session.refresh(cart)
-        
-    cart_item = CartItem(
-        CartID=cart.CartID,
-        ProdID=payload.product_id,
-        Prod_Name=payload.product_name, 
-        Prod_Qty=1,
-        Prod_Price=5 
-    )
-    
-    session.add(cart_item)
-    session.commit()
-    
-    return {"Added to cart successfully"}
+# @app.post("/cart/{user_id}")
+# def createCart(user_id: int, payload: AddToCart, session: Session = Depends(getSession)):
+#     driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == user_id)).first()
+#     
+#     cart = session.exec(select(Cart).where(Cart.DriverID == user_id, Cart.Status == "Pending")).first()
+#     
+#     if not cart:
+#         cart = Cart(
+#             DriverID=user_id,
+#             Status="Pending",
+#             Created_At=datetime.now(timezone.utc),
+#             Checked_Out_At=datetime.now(timezone.utc) 
+#         )
+#         session.add(cart)
+#         session.commit()
+#         session.refresh(cart)
+#         
+#     cart_item = CartItem(
+#         CartID=cart.CartID,
+#         ProdID=payload.product_id,
+#         Prod_Name=payload.product_name, 
+#         Prod_Qty=1,
+#         Prod_Price=5 
+#     )
+#     
+#     session.add(cart_item)
+#     session.commit()
+#     
+#     return {"Added to cart successfully"}
     
 @app.delete("/cart/{driver_id}")
 def deleteCart(driver_id : int, cart_id : int, session: Session = Depends(getSession)):
@@ -1581,7 +1584,24 @@ def markAsRead(notification_id: int, session: Session = Depends(getSession)):
 #Adds items to sponsor market
 
 @app.post("/products/{market_id}")
-def addProductsToMarket():
+def addProductsToMarket(ebayItemID:str, session:Session =Depends(getSession)):
+    
+    status, data = getEbayProduct(ebayItemID)
+    
+    if status != 200:
+        raise HTTPException(status_code=502, detail="eBay lookup failed")
+
+    
+    title = data.get("title")
+    price_value = data.get("price", {}).get("value")
+    price_currency = data.get("price", {}).get("currency")
+    image_url = data.get("image", {}).get("imageUrl")
+    legacy_id = data.get("legacyItemId")
+    item_id = data.get("itemId")
+    
+    
+    
+    
     return ""
 
 
