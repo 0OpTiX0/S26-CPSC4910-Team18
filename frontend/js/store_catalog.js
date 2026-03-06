@@ -3,15 +3,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const catalogContainer = document.getElementById('catalog-container');
     const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user"));
 
-    if (!session || !session.userId) return;
-
     async function loadHeaderStats() {
         try {
             const points = await window.API.request(`/points/${session.userId}`);
             pointsDisplay.textContent = points;
 
-            const cartItems = await window.API.request(`/cart/${session.userId}?status=Pending`);
-            updateCartUI(cartItems.length);
+            const localCart = JSON.parse(localStorage.getItem("gd_cart")) || [];
+            updateCartUI(localCart.length);
         } catch (error) {
             console.error("Header sync failed:", error);
         }
@@ -60,30 +58,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     window.addToCart = async (productId, productName) => {
-        try {
-            const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user"));
-            const userId = session.userId || session.UserID; 
-
-            if (!userId) {
-                alert("Please log in again.");
-                return;
-            }
-
-            await window.API.request(`/cart/${userId}`, {
-                method: "POST",
-                body: {
-                    product_id: productId, 
-                    product_name: productName,
-                    status: "Pending"
-                }
-            });
-
-            alert(`${productName} added to your cart!`);
-            if (typeof loadHeaderStats === "function") loadHeaderStats(); 
-        } catch (err) {
-            console.error("Cart Error:", err);
-            alert("Failed to add to cart. Check if the backend is running.");
+        const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user"));
+        if (!session) {
+            alert("Please log in again.");
+            return;
         }
+
+        let localCart = JSON.parse(localStorage.getItem("gd_cart")) || [];
+
+        localCart.push({
+            Cart_ID: Date.now(), 
+            product_id: productId,
+            product_name: productName,
+            price: 5 
+        });
+
+        localStorage.setItem("gd_cart", JSON.stringify(localCart));
+
+        alert(`${productName} added to your cart!`);
+        
+        updateCartUI(localCart.length);
     };
 
     loadHeaderStats();

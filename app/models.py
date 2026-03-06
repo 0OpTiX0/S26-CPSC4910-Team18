@@ -252,3 +252,8 @@ class UpdateCart(BaseModel):
     cart_item_id : int
     prod_id : int
     prod_qty : Optional[int] = None
+
+class AddToCart(BaseModel):
+    product_id: str
+    product_name: str
+    status: str

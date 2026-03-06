@@ -12,9 +12,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function loadCart() {
         try {
-            // 1. Fetch current points and pending cart items
             currentBalance = await window.API.request(`/points/${session.userId}`);
-            cartData = await window.API.request(`/cart/${session.userId}?status=Pending`);
+            
+            cartData = JSON.parse(localStorage.getItem("gd_cart")) || [];
 
             if (cartData.length === 0) {
                 cartContainer.innerHTML = `<div class="p-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
@@ -24,13 +24,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            // 2. Render items and calculate total
             cartContainer.innerHTML = '';
             let total = 0;
 
             cartData.forEach(item => {
-                // For now, using mock pricing based on the name or a default
-                const itemPrice = item.price || 250; 
+                const itemPrice = item.price || 5; 
                 total += itemPrice;
 
                 const itemRow = document.createElement('div');
@@ -51,18 +49,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             totalDisplay.textContent = `${total} pts`;
             summaryBox.classList.remove('hidden');
             
-            // Disable button if user can't afford it
             if (currentBalance < total) {
                 checkoutBtn.disabled = true;
                 checkoutBtn.textContent = "Insufficient Points";
                 checkoutBtn.className = "w-full bg-slate-700 text-slate-500 py-4 rounded-2xl font-black cursor-not-allowed";
+            } else {
+                checkoutBtn.disabled = false;
+                checkoutBtn.textContent = "Confirm Order";
+                checkoutBtn.className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-blue-600 transition-colors";
             }
         } catch (err) {
-            console.error(err);
+            console.error("Failed to load cart context:", err);
         }
     }
 
-    // --- Checkout Logic ---
     checkoutBtn.addEventListener('click', async () => {
         const total = parseInt(totalDisplay.textContent);
         
@@ -70,7 +70,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!confirmed) return;
 
         try {
-            // Deduct points
             await window.API.request("/points", {
                 method: "PATCH",
                 body: {
@@ -80,8 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
 
-            // In a real app, you would also loop through the cart items 
-            // and update their status to "Purchased" or "Ordered" here.
+            localStorage.removeItem("gd_cart");
             
             alert("Order Successful! Your rewards are on the way.");
             window.location.href = "store_catalog.html";
@@ -90,9 +88,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    window.removeItem = async (cartId) => {
-        // Here you would call a DELETE /cart/{cart_id} endpoint if you have one
-        alert("Removing items functionality will be linked to your DELETE API.");
+    window.removeItem = (cartId) => {
+        let localCart = JSON.parse(localStorage.getItem("gd_cart")) || [];
+        
+        localCart = localCart.filter(item => item.Cart_ID !== cartId);
+        
+        localStorage.setItem("gd_cart", JSON.stringify(localCart));
+        
+        loadCart();
     };
 
     loadCart();

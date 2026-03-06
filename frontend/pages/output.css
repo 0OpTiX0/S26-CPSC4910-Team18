@@ -50,6 +50,11 @@
     --color-indigo-700: oklch(45.7% 0.24 277.023);
     --color-indigo-900: oklch(35.9% 0.144 278.697);
     --color-purple-500: oklch(62.7% 0.265 303.9);
+    --color-rose-50: oklch(96.9% 0.015 12.422);
+    --color-rose-100: oklch(94.1% 0.03 12.58);
+    --color-rose-500: oklch(64.5% 0.246 16.439);
+    --color-rose-600: oklch(58.6% 0.253 17.585);
+    --color-rose-700: oklch(51.4% 0.222 16.935);
     --color-slate-50: oklch(98.4% 0.003 247.858);
     --color-slate-100: oklch(96.8% 0.007 247.896);
     --color-slate-200: oklch(92.9% 0.013 255.508);
@@ -418,6 +423,12 @@
   .mb-16 {
     margin-bottom: calc(var(--spacing) * 16);
   }
+  .ml-1 {
+    margin-left: calc(var(--spacing) * 1);
+  }
+  .ml-2 {
+    margin-left: calc(var(--spacing) * 2);
+  }
   .ml-3 {
     margin-left: calc(var(--spacing) * 3);
   }
@@ -481,6 +492,9 @@
   .h-32 {
     height: calc(var(--spacing) * 32);
   }
+  .h-40 {
+    height: calc(var(--spacing) * 40);
+  }
   .h-full {
     height: 100%;
   }
@@ -523,6 +537,9 @@
   .w-16 {
     width: calc(var(--spacing) * 16);
   }
+  .w-20 {
+    width: calc(var(--spacing) * 20);
+  }
   .w-24 {
     width: calc(var(--spacing) * 24);
   }
@@ -559,10 +576,19 @@
   .max-w-sm {
     max-width: var(--container-sm);
   }
+  .min-w-0 {
+    min-width: calc(var(--spacing) * 0);
+  }
+  .min-w-full {
+    min-width: 100%;
+  }
   .flex-1 {
     flex: 1;
   }
   .flex-shrink-0 {
+    flex-shrink: 0;
+  }
+  .shrink-0 {
     flex-shrink: 0;
   }
   .flex-grow {
@@ -711,6 +737,9 @@
   .overflow-hidden {
     overflow: hidden;
   }
+  .overflow-x-auto {
+    overflow-x: auto;
+  }
   .rounded {
     border-radius: 0.25rem;
   }
@@ -783,6 +812,9 @@
   .border-emerald-200 {
     border-color: var(--color-emerald-200);
   }
+  .border-emerald-500 {
+    border-color: var(--color-emerald-500);
+  }
   .border-orange-500 {
     border-color: var(--color-orange-500);
   }
@@ -794,6 +826,9 @@
   }
   .border-red-200 {
     border-color: var(--color-red-200);
+  }
+  .border-rose-500 {
+    border-color: var(--color-rose-500);
   }
   .border-slate-50 {
     border-color: var(--color-slate-50);
@@ -885,6 +920,12 @@
   .bg-red-600 {
     background-color: var(--color-red-600);
   }
+  .bg-rose-100 {
+    background-color: var(--color-rose-100);
+  }
+  .bg-rose-500 {
+    background-color: var(--color-rose-500);
+  }
   .bg-slate-50 {
     background-color: var(--color-slate-50);
   }
@@ -902,6 +943,9 @@
   }
   .bg-slate-400 {
     background-color: var(--color-slate-400);
+  }
+  .bg-slate-700 {
+    background-color: var(--color-slate-700);
   }
   .bg-slate-900 {
     background-color: var(--color-slate-900);
@@ -924,8 +968,14 @@
   .bg-yellow-400 {
     background-color: var(--color-yellow-400);
   }
+  .object-cover {
+    object-fit: cover;
+  }
   .p-1 {
     padding: calc(var(--spacing) * 1);
+  }
+  .p-2 {
+    padding: calc(var(--spacing) * 2);
   }
   .p-3 {
     padding: calc(var(--spacing) * 3);
@@ -950,6 +1000,9 @@
   }
   .px-1 {
     padding-inline: calc(var(--spacing) * 1);
+  }
+  .px-1\.5 {
+    padding-inline: calc(var(--spacing) * 1.5);
   }
   .px-2 {
     padding-inline: calc(var(--spacing) * 2);
@@ -1040,6 +1093,9 @@
   }
   .text-right {
     text-align: right;
+  }
+  .align-\[-3px\] {
+    vertical-align: -3px;
   }
   .font-mono {
     font-family: var(--font-mono);
@@ -1199,6 +1255,15 @@
   .text-red-800 {
     color: var(--color-red-800);
   }
+  .text-rose-600 {
+    color: var(--color-rose-600);
+  }
+  .text-rose-700 {
+    color: var(--color-rose-700);
+  }
+  .text-slate-300 {
+    color: var(--color-slate-300);
+  }
   .text-slate-400 {
     color: var(--color-slate-400);
   }
@@ -1339,6 +1404,13 @@
       }
     }
   }
+  .group-hover\:text-white {
+    &:is(:where(.group):hover *) {
+      @media (hover: hover) {
+        color: var(--color-white);
+      }
+    }
+  }
   .hover\:-translate-y-1 {
     &:hover {
       @media (hover: hover) {
@@ -1357,17 +1429,24 @@
       }
     }
   }
-  .hover\:gap-2 {
-    &:hover {
-      @media (hover: hover) {
-        gap: calc(var(--spacing) * 2);
-      }
-    }
-  }
   .hover\:border-red-200 {
     &:hover {
       @media (hover: hover) {
         border-color: var(--color-red-200);
+      }
+    }
+  }
+  .hover\:bg-blue-500 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-blue-500);
+      }
+    }
+  }
+  .hover\:bg-blue-600 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-blue-600);
       }
     }
   }
@@ -1378,10 +1457,10 @@
       }
     }
   }
-  .hover\:bg-emerald-600 {
+  .hover\:bg-emerald-50 {
     &:hover {
       @media (hover: hover) {
-        background-color: var(--color-emerald-600);
+        background-color: var(--color-emerald-50);
       }
     }
   }
@@ -1389,6 +1468,20 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-red-50);
+      }
+    }
+  }
+  .hover\:bg-red-600 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-red-600);
+      }
+    }
+  }
+  .hover\:bg-rose-50 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-rose-50);
       }
     }
   }
@@ -1406,10 +1499,24 @@
       }
     }
   }
+  .hover\:bg-slate-200 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-slate-200);
+      }
+    }
+  }
   .hover\:bg-slate-800 {
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-slate-800);
+      }
+    }
+  }
+  .hover\:bg-slate-900 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-slate-900);
       }
     }
   }
@@ -1424,6 +1531,13 @@
     &:hover {
       @media (hover: hover) {
         color: var(--color-blue-700);
+      }
+    }
+  }
+  .hover\:text-red-500 {
+    &:hover {
+      @media (hover: hover) {
+        color: var(--color-red-500);
       }
     }
   }
@@ -1517,6 +1631,11 @@
   .focus\:ring-blue-500 {
     &:focus {
       --tw-ring-color: var(--color-blue-500);
+    }
+  }
+  .focus\:ring-blue-600 {
+    &:focus {
+      --tw-ring-color: var(--color-blue-600);
     }
   }
   .focus\:ring-indigo-500 {
@@ -1647,6 +1766,11 @@
   .lg\:grid-cols-2 {
     @media (width >= 64rem) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .lg\:grid-cols-3 {
+    @media (width >= 64rem) {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
   .lg\:p-8 {

@@ -1250,14 +1250,37 @@ def getCart(driver_id:int,
     return cart
 
 
+from pydantic import BaseModel
+
 @app.post("/cart/{user_id}")
-def createCart(user_id:int, session: Session = Depends(getSession)):
-    stmt = select(User).where(User.UserID == user_id)
+def createCart(user_id: int, payload: AddToCart, session: Session = Depends(getSession)):
+    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == user_id)).first()
     
-    user = session.exec(stmt).first()
+    cart = session.exec(select(Cart).where(Cart.DriverID == user_id, Cart.Status == "Pending")).first()
     
-    if not user:
-        raise HTTPException(status_code=404, detail="User Not Found!")
+    if not cart:
+        cart = Cart(
+            DriverID=user_id,
+            Status="Pending",
+            Created_At=datetime.now(timezone.utc),
+            Checked_Out_At=datetime.now(timezone.utc) 
+        )
+        session.add(cart)
+        session.commit()
+        session.refresh(cart)
+        
+    cart_item = CartItem(
+        CartID=cart.CartID,
+        ProdID=payload.product_id,
+        Prod_Name=payload.product_name, 
+        Prod_Qty=1,
+        Prod_Price=5 
+    )
+    
+    session.add(cart_item)
+    session.commit()
+    
+    return {"Added to cart successfully"}
     
 @app.delete("/cart/{driver_id}")
 def deleteCart(driver_id : int, cart_id : int, session: Session = Depends(getSession)):
