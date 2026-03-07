@@ -102,13 +102,13 @@ class Product(SQLModel, table=True):
     __tablename__ = "Product"
     ProductID: Optional[int] = Field(default=None, unique=True, primary_key=True)
     MarketID: Optional[int] = Field(foreign_key="Market.Market_ID")
-    ProductName: str
-    ProductDescription: str
-    ProductPrice: int
-    ProductQty:int
+    Product_Name: str
+    Product_Description: str
+    Product_Price: int
+    Product_Qty:int
     #We're going to use paths to pull images from storage instad of storing bits.
-    ProductImage: str
-    LastRefreshed: datetime
+    Product_Image: str
+    Last_Refreshed: datetime
     
 class CartItem(SQLModel, table=True):
     __tablename__ = "Cart_Item"

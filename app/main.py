@@ -1618,12 +1618,12 @@ def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depe
 
     product = Product(
         MarketID=market_id,
-        ProductName=title,
-        ProductDescription=description,
-        ProductPrice=price,
-        ProductQty=product_qty,
-        ProductImage=image_url,
-        LastRefreshed=datetime.now(timezone.utc),
+        Product_Name=title,
+        Product_Description=description,
+        Product_Price=price,
+        Product_Qty=product_qty,
+        Product_Image=image_url,
+        Last_Refreshed=datetime.now(timezone.utc),
     )
     session.add(product)
     session.commit()
@@ -1652,7 +1652,7 @@ def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), se
     stmt = select(Product).where(Product.MarketID == market_id)
 
     if product_name is not None:
-        stmt = stmt.where(func.lower(Product.ProductName).like(f"%{product_name.lower()}%"))
+        stmt = stmt.where(func.lower(Product.Product_Name).like(f"%{product_name.lower()}%"))
     
     
     products = session.exec(stmt).all()
