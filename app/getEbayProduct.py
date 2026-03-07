@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-
 import requests
 from dotenv import load_dotenv
 from requests.auth import HTTPBasicAuth
@@ -67,7 +66,6 @@ def getEbayProduct(ebayProductID: str):
 
     try:
         resp.raise_for_status()
-        print(resp.status_code, resp.json())
         return resp.status_code, resp.json()
     except requests.RequestException as exc:
         raise RuntimeError(f"eBay item lookup failed: {resp.status_code} {resp.text}") from exc
@@ -82,4 +80,4 @@ def getEbayProdcut(ebayProductID: str):
 
 
 
-#getEbayProdcut("110588958088")
+#getEbayProdcut("110589096548")

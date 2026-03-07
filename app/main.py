@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 from mailTo import emailSponsor, passwordResetEmail
 from typing import Optional, Literal
 from getEbayProduct import getEbayProduct
+from html import unescape
 import csv
 import io
 import os
@@ -1198,16 +1199,7 @@ def createMarket(payload: MarketCreate, sponsor_email : Optional[str] = Query(No
         session.refresh(market)
         return market
     
-    else:
-        market = Market(
-            Market_Name=payload.name,
-            Market_Description=payload.description
-        )
-
-        session.add(market)
-        session.commit()
-        session.refresh(market)
-        return market
+    
 
 @app.get("/market/{market_id}")
 def getMarket(market_id : int, session: Session = Depends(getSession)):
@@ -1218,6 +1210,9 @@ def getMarket(market_id : int, session: Session = Depends(getSession)):
         raise HTTPException(status_code=404, detail="Driver not found")
     
     return market_item
+
+
+
 
 @app.delete("/market/{market_id}")
 def deleteMarket(market_id : int, session: Session = Depends(getSession)):
@@ -1584,25 +1579,62 @@ def markAsRead(notification_id: int, session: Session = Depends(getSession)):
 #Adds items to sponsor market
 
 @app.post("/products/{market_id}")
-def addProductsToMarket(ebayItemID:str, session:Session =Depends(getSession)):
+def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depends(getSession)):
+    market = session.exec(select(Market).where(Market.Market_ID == market_id)).first()
+    if not market:
+        raise HTTPException(status_code=404, detail="Sponsor Market not found!")
     
     status, data = getEbayProduct(ebayItemID)
     
     if status != 200:
         raise HTTPException(status_code=502, detail="eBay lookup failed")
 
-    
-    title = data.get("title")
-    price_value = data.get("price", {}).get("value")
-    price_currency = data.get("price", {}).get("currency")
-    image_url = data.get("image", {}).get("imageUrl")
-    legacy_id = data.get("legacyItemId")
-    item_id = data.get("itemId")
-    
-    
-    
-    
-    return ""
+    raw_title = (data.get("title") or "").strip()
+    raw_description = data.get("description") or ""
+    raw_image_url = (data.get("image", {}).get("imageUrl") or "").strip()
+    raw_price = data.get("price", {}).get("value")
+    raw_qty = 0
+    availabilities = data.get("estimatedAvailabilities") or []
+    if availabilities:
+        raw_qty = availabilities[0].get("estimatedAvailableQuantity") or 0
+
+    description_no_style = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", raw_description, flags=re.IGNORECASE | re.DOTALL)
+    description_no_tags = re.sub(r"<[^>]+>", " ", description_no_style)
+    description_text = re.sub(r"\s+", " ", unescape(description_no_tags)).strip()
+
+    title = raw_title[:45] if raw_title else "eBay Item"
+    description = description_text[:100]
+    image_url = raw_image_url[:255]
+
+    try:
+        price = int(round(float(raw_price))) if raw_price is not None else 0
+    except (TypeError, ValueError):
+        price = 0
+
+    try:
+        product_qty = int(raw_qty)
+    except (TypeError, ValueError):
+        product_qty = 0
+
+    product = Product(
+        MarketID=market_id,
+        ProductName=title,
+        ProductDescription=description,
+        ProductPrice=price,
+        ProductQty=product_qty,
+        ProductImage=image_url,
+        LastRefreshed=datetime.now(timezone.utc),
+    )
+    session.add(product)
+    session.commit()
+    session.refresh(product)
+
+    return {
+        "message": "Product added to market",
+        "product_id": product.ProductID,
+        "source_item_id": data.get("itemId"),
+        "source_legacy_item_id": data.get("legacyItemId"),
+    }
 
 
 

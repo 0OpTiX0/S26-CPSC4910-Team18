@@ -100,7 +100,7 @@ class Cart(SQLModel, table=True):
 
 class Product(SQLModel, table=True):
     __tablename__ = "Product"
-    ProductID: Optional[int] = Field(unique=True, primary_key=True)
+    ProductID: Optional[int] = Field(default=None, unique=True, primary_key=True)
     MarketID: Optional[int] = Field(foreign_key="Market.Market_ID")
     ProductName: str
     ProductDescription: str
