@@ -38,7 +38,6 @@ class Driver_User(SQLModel, table=True):
 
     Registered_Driver: Optional[int] = Field(default=None, foreign_key="User.UserID", primary_key=True)
     Driver_Name: str
-    User_Points: int = Field(default=0)
     Is_Suspended: bool = Field(default=False)
     Suspension_Reason: Optional[str] = None
     Suspension_Until: Optional[datetime] = None
@@ -152,9 +151,11 @@ class Sponsorship(SQLModel, table=True):
     __tablename__ = "Sponsorships"
     Driver_User_ID: Optional[int] = Field(primary_key=True, foreign_key="Driver_User.Registered_Driver")
     Sponsor_ID: Optional[int] = Field(primary_key=True, foreign_key="Sponsor.Sponsor_ID")
+    User_Points: int = Field(default=0)
     Membership_Status: str
     Member_Since: datetime
-    
+
+
 
     
 
@@ -229,7 +230,8 @@ class NewReport(BaseModel):
     status:str
     
 class NewPointChange(BaseModel):
-    driverID: int
+    driver_id: int
+    sponsor_id: int
     points_change: int
     reason:str
     created_at: Optional[datetime] = None
@@ -257,3 +259,12 @@ class AddToCart(BaseModel):
     product_id: str
     product_name: str
     status: str
+
+
+class Purchase(BaseModel):
+    market_id: int
+    product_id: int
+    driver_id: int
+    
+    
+

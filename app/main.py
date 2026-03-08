@@ -1092,71 +1092,79 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
 
 #Gets a drivers user points to redeem
 @app.get("/points/{user_id}")
-def getDriverPoints(user_id: int ,session:Session=Depends(getSession)):
-    stmt = select(Driver_User).where(Driver_User.Registered_Driver == user_id)
+def getDriverPoints(driver_id: int, sponsor_id:int ,session:Session=Depends(getSession)):
     
-    driver = session.exec(stmt).first()
+    stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == driver_id, Sponsorship.Sponsor_ID == sponsor_id)
     
-    if not driver:
-        raise HTTPException(status_code=404, detail="Driver does not exist!")
+    sponsorship = session.exec(stmt).first()
     
-    return driver.User_Points
+    if not sponsorship:
+        raise HTTPException(status_code= 404, detail="Sponsorship does not exist. Check existing sponsorships.")
     
-# #Adds or subtracts points while also creating a transaction report
+    return sponsorship.User_Points
+    
+    
+#Adds or subtracts points while also creating a transaction report
 #Joseph-> Ive gotta fix this endpoint so that it is compatable with the new schema
 
-# @app.patch("/points")
-# def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
-#     stmt = select(Driver_User).where(Driver_User.Registered_Driver == payload.driverID)
-#     
-#     driver = session.exec(stmt).first()
-#     
-#     if not driver:
-#         raise HTTPException(status_code=404, detail="Driver not found!")
-#     
-#     u_stmt = select(User).where(User.UserID == driver.User_ID)
-#     sponsor = None
-#     if driver.Sponsor_ID is not None:
-#         s_stmt = select(Sponsor).where(Sponsor.Sponsor_ID == driver.Sponsor_ID)
-#         sponsor = session.exec(s_stmt).first()
-#     
-#     user = session.exec(u_stmt).first()
-#
-#     if not user:
-#         raise HTTPException(status_code=404, detail="User not found")
-#     if driver.Is_Suspended:
-#         raise HTTPException(status_code=403, detail="Driver is suspended")
-#
-#     driver.User_Points += payload.points_change
-#     
-#     
-#     newTransaction = Point_Transaction(
-#         Driver_User_ID= payload.driverID,
-#         Driver_Name= user.User_Name,
-#         Sponsor_Name= sponsor.Sponsor_Name if sponsor else "Unassigned",
-#         Points_Change= str(payload.points_change),
-#         Reason_For_Change= payload.reason,
-#         Created_At= datetime.now(timezone.utc),
-#         Points_After_Change= driver.User_Points
-#     )
-#     
-#     session.add(driver)
-#     session.add(newTransaction)
-#     session.commit()          
-#     session.refresh(driver)
-#     session.refresh(newTransaction)
-#
-#     if driver.Registered_Driver is not None:
-#         create_notification(
-#             session,
-#             driver.Registered_Driver,
-#             f"Your points changed by {payload.points_change}. Reason: {payload.reason}. New total: {driver.User_Points}",
-#             "Points"
-#         )
-#         session.commit()
-#     
-#     
-#     return({"message": "Transaction successful and log recorded."})
+@app.patch("/points")
+def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
+    stmt = select(Driver_User).where(Driver_User.Registered_Driver == payload.driver_id)
+    driver = session.exec(stmt).first()
+     
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found!")
+    
+    if driver.Is_Suspended:
+        raise HTTPException(status_code=403, detail="Driver is suspended")
+
+    stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == payload.driver_id, Sponsorship.Sponsor_ID == payload.sponsor_id)
+    sponsorship = session.exec(stmt).first()
+    
+    if not sponsorship:
+        raise HTTPException(status_code= 404, detail="Sponsorship does not exist. Check existing sponsorships.")
+    
+    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == payload.sponsor_id)
+    sponsor = session.exec(stmt).first()
+
+
+    new_total = sponsorship.User_Points + payload.points_change
+    
+    if new_total < 0:
+        raise HTTPException(status_code=400, detail="User points cant go below zero!")
+
+    sponsorship.User_Points = new_total
+
+    
+     
+     
+    newTransaction = Point_Transaction(
+        Driver_User_ID= payload.driver_id,
+        Driver_Name= driver.Driver_Name,
+        Sponsor_Name= sponsor.Sponsor_Name if sponsor else "Unassigned",
+        Points_Change= str(payload.points_change),
+        Reason_For_Change= payload.reason,
+        Created_At= datetime.now(timezone.utc),
+        Points_After_Change= sponsorship.User_Points
+    )
+     
+    session.add(driver)
+    session.add(newTransaction)
+    session.commit()          
+    session.refresh(driver)
+    session.refresh(newTransaction)
+
+    if driver.Registered_Driver is not None:
+        create_notification(
+            session,
+            driver.Registered_Driver,
+            f"Your points changed by {payload.points_change}. Reason: {payload.reason}. New total: {sponsorship.User_Points}",
+            "Points"
+        )
+        session.commit()
+     
+     
+    return({"message": "Transaction successful and log recorded."})
 
 #Deletes a transaction log
 @app.delete("/transaction/{transaction_id}")
@@ -1659,3 +1667,85 @@ def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), se
     
     return products
  
+ 
+@app.patch("/products/purchase")
+def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
+     
+    stmt = select(Market).where(Market.Market_ID == payload.market_id)
+    market = session.exec(stmt).first()
+    
+    if not market:
+        raise HTTPException(status_code=404, detail="Market does not exist")
+    
+    stmt = select(Product).where(Product.ProductID == payload.product_id, Product.MarketID == payload.market_id)
+    product = session.exec(stmt).first()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found in specific market")
+    
+    
+    stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == payload.driver_id, Sponsorship.Sponsor_ID == market.Market_Sponsor)
+    customer = session.exec(stmt).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="User is not authorized to shop in this market")
+    
+    
+    stmt = select(Driver_User).where(Driver_User.Registered_Driver == payload.driver_id)
+    driver = session.exec(stmt).first()
+    
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found!")
+    
+    
+    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == customer.Sponsor_ID)
+    sponsor = session.exec(stmt).first()
+    
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+   
+    
+    
+    
+    if customer.User_Points < product.Product_Price:
+        raise HTTPException(status_code=400, detail="User cannot afford product")
+    
+    if product.Product_Qty < 1:
+        raise HTTPException(status_code=400, detail = "Product is out of stock!")
+    
+    
+    
+    product.Product_Qty -= 1
+    customer.User_Points -= product.Product_Price
+    
+    session.add(product)
+    session.add(customer)
+    
+    
+    transaction_log = Point_Transaction(
+        Driver_User_ID=customer.Driver_User_ID,
+        Driver_Name= driver.Driver_Name,
+        Sponsor_Name= sponsor.Sponsor_Name,
+        Points_Change= str(0 - product.Product_Price),
+        Points_After_Change= customer.User_Points,
+        Reason_For_Change= "User purchase",
+        Created_At= datetime.now(timezone.utc)
+    )
+    
+    session.add(transaction_log)
+    session.commit()
+    session.refresh(product)
+    session.refresh(customer)
+    session.refresh(transaction_log)
+
+    create_notification(
+        session,
+        payload.driver_id,
+        f"Purchase complete: {product.Product_Name} for {product.Product_Price} points. Remaining points: {customer.User_Points}",
+        "Purchase"
+    )
+
+    return {"message": "Purchase completed successfully"}
+
+
+
+
