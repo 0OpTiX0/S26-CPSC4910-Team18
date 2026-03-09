@@ -1091,7 +1091,7 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
 
 
 #Gets a drivers user points to redeem
-@app.get("/points/{user_id}")
+@app.get("/points/{driver_id}")
 def getDriverPoints(driver_id: int, sponsor_id:int ,session:Session=Depends(getSession)):
     
     stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == driver_id, Sponsorship.Sponsor_ID == sponsor_id)

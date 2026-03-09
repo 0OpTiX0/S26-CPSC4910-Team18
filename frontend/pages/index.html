@@ -24,6 +24,7 @@
         <a href="view-status.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">Status</a>
         <a id="nav-suspend" href="suspend-drivers.html"class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">Suspend Drivers</a>
         <a id="nav-modify" href="modify-drivers.html"class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">Modify Drivers</a>
+        <a id="nav-market" href="create-market.html" class="hidden text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">Create Market</a>
         <a href="about.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition-all hover:scale-105">About</a>
       </nav>
 
@@ -106,6 +107,7 @@
     const dashboardLink = document.getElementById("dashboard-link");
     const navSuspend    = document.getElementById("nav-suspend");
     const navModify    = document.getElementById("nav-modify");
+    const navMarket    = document.getElementById("nav-market");
 
     if (user) {
       guestActions?.classList.add("hidden");
@@ -117,6 +119,7 @@
         dashboardLink.href = "sponsor_applications.html";
         dashboardLink.textContent = "Application View";
         navSuspend?.classList.remove("hidden");
+        navMarket?.classList.remove("hidden");
       } else if (role === "admin") {
         dashboardLink.href = "admin-management.html";
         dashboardLink.textContent = "Admin Dashboard";
@@ -126,6 +129,7 @@
         dashboardLink.textContent = "My Status";
         navSuspend?.classList.add("hidden");
         navModify?.classList.add("hidden");
+        navMarket?.classList.add("hidden");
       }
     }
   </script>

@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     driverId,
                     email: userRow?.User_Email ?? userRow?.user_email ?? 'No email found',
                     name: driverRow?.Driver_Name ?? driverRow?.driver_name ?? userRow?.User_Name ?? userRow?.user_name ?? `Driver #${driverId}`,
-                    points: driverRow?.User_Points ?? driverRow?.user_points ?? 0,
+                    points: membership?.User_Points ?? membership?.user_points ?? 0,
                     memberSince: membership?.Member_Since ?? membership?.member_since ?? null,
                     membershipStatus: membership?.Membership_Status ?? membership?.membership_status ?? 'Active',
                     sponsorId
@@ -113,7 +113,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 class="adjust-btn bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 shadow-md active:scale-95 transition-all"
                                 data-driver-id="${driver.driverId}"
                                 data-driver-email="${escHtml(driver.email)}"
-                                data-driver-name="${escHtml(driver.name)}">
+                                data-driver-name="${escHtml(driver.name)}"
+                                data-sponsor-id="${driver.sponsorId}">
                             Adjust
                         </button>
 
@@ -132,9 +133,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             listContainer.querySelectorAll('.adjust-btn').forEach((button) => {
                 button.addEventListener('click', () => {
                     const driverId = Number(button.dataset.driverId);
+                    const sponsorIdValue = Number(button.dataset.sponsorId);
                     const driverEmail = button.dataset.driverEmail || '';
                     const driverName = button.dataset.driverName || driverEmail;
-                    window.adjustPoints(driverId, driverEmail, driverName);
+                    window.adjustPoints(driverId, sponsorIdValue, driverEmail, driverName);
                 });
             });
 
@@ -169,6 +171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let selectedDriverId = null;
     let selectedDriverEmail = null;
+    let selectedSponsorId = null;
     let mode = 'add';
 
     function setTxStatus(msg, kind = 'info') {
@@ -230,7 +233,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }).join('');
     }
 
-    async function loadTransactions(driverId) {
+    async function loadTransactions(driverId, sponsorId) {
         if (!driverId || !transactionsBody) return;
 
         setTxStatus('Loading transactions...');
@@ -244,7 +247,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
 
         try {
-            const tx = await window.API.request(`/report/transaction/${driverId}`);
+            const tx = await window.API.request(`/report/transaction/${driverId}?sponsor_id=${encodeURIComponent(sponsorId)}`);
             renderTxRows(Array.isArray(tx) ? tx : []);
             setTxStatus('');
         } catch (err) {
@@ -294,6 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         editSection?.classList.add('hidden');
         selectedDriverId = null;
         selectedDriverEmail = null;
+        selectedSponsorId = null;
         if (pointsAmountEl) pointsAmountEl.value = '';
         if (pointsReasonEl) pointsReasonEl.value = '';
         setStatus('');
@@ -333,9 +337,10 @@ Optional: enter a reason (or leave blank):`, '');
         }
     };
 
-    window.adjustPoints = async (driverId, email, displayName) => {
+    window.adjustPoints = async (driverId, sponsorId, email, displayName) => {
         selectedDriverId = driverId;
         selectedDriverEmail = email;
+        selectedSponsorId = sponsorId;
 
         if (selectedDriverNameEl) selectedDriverNameEl.textContent = displayName || email;
         setMode('add');
@@ -346,18 +351,20 @@ Optional: enter a reason (or leave blank):`, '');
         editSection?.classList.remove('hidden');
 
         try {
-            const pts = await window.API.request(`/points/${driverId}`);
+            const pts = await window.API.request(`/points/${driverId}?sponsor_id=${encodeURIComponent(sponsorId)}`);
             if (currentPointsEl) currentPointsEl.value = pts;
         } catch (err) {
             if (currentPointsEl) currentPointsEl.value = '';
             setStatus('Could not load current points for this driver.', 'error');
         }
 
-        loadTransactions(driverId);
+        loadTransactions(driverId, sponsorId);
     };
 
     refreshTransactionsBtn?.addEventListener('click', () => {
-        if (selectedDriverId) loadTransactions(selectedDriverId);
+        if (selectedDriverId && selectedSponsorId) {
+            loadTransactions(selectedDriverId, selectedSponsorId);
+        }
     });
 
     applyPointsBtn?.addEventListener('click', async () => {
@@ -383,13 +390,14 @@ Optional: enter a reason (or leave blank):`, '');
             await window.API.request('/points', {
                 method: 'PATCH',
                 body: {
-                    driverID: selectedDriverId,
+                    driver_id: selectedDriverId,
+                    sponsor_id: selectedSponsorId,
                     points_change: signedChange,
                     reason: rawReason
                 }
             });
 
-            const newPoints = await window.API.request(`/points/${selectedDriverId}`);
+            const newPoints = await window.API.request(`/points/${selectedDriverId}?sponsor_id=${encodeURIComponent(selectedSponsorId)}`);
             const ptDisplay = document.getElementById(`pts-${selectedDriverId}`);
             if (ptDisplay) {
                 ptDisplay.innerHTML = `${escHtml(newPoints)} <span class="text-xs text-slate-400 font-medium">pts</span>`;
@@ -399,7 +407,7 @@ Optional: enter a reason (or leave blank):`, '');
             const actionWord = signedChange < 0 ? 'deducted' : 'added';
             setStatus(`Points ${actionWord} (${Math.abs(signedChange)} pts). Reason: ${rawReason}`, 'success');
 
-            loadTransactions(selectedDriverId);
+            loadTransactions(selectedDriverId, selectedSponsorId);
             if (pointsAmountEl) pointsAmountEl.value = '';
             if (pointsReasonEl) pointsReasonEl.value = '';
         } catch (err) {
