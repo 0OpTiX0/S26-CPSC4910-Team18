@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlmodel import select, Session, delete
-from sqlalchemy import func, desc  
+from sqlalchemy import func, desc, String, cast
 from encrypt import encryptString, verifyPassword, generate_verification_code
 from datetime import datetime, timezone, timedelta
 from mailTo import emailSponsor, passwordResetEmail
@@ -1743,8 +1743,20 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
 
     return {"message": "Purchase completed successfully"}
 
-@app.get("products/purchase/history")
-def getOrderHistory()
+@app.get("/products/purchase/history")
+def getOrderHistory(driver_id:int, session: Session=Depends(getSession)):
+    stmt = select(Point_Transaction).where(
+        Point_Transaction.Driver_User_ID == driver_id,
+        cast(Point_Transaction.Reason_For_Change, String).like("%User Purchase%")
+    ) 
+    
+    transaction_history = session.exec(stmt).all()
+    
+    if not transaction_history:
+        raise HTTPException(status_code=404, detail="No purchases have been made for this user")
+    
+    
+    return transaction_history
 
 
 

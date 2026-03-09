@@ -276,5 +276,4 @@ class PointToDollar(BaseModel):
     point_to_dollar_value : Decimal
 
 
-class OrderHistoryLookup(BaseModel):
-    
+
