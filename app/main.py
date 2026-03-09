@@ -9,7 +9,7 @@ from mailTo import emailSponsor, passwordResetEmail
 from typing import Optional, Literal
 from getEbayProduct import getEbayProduct
 from html import unescape
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import csv
 import io
 import os
@@ -87,6 +87,23 @@ def create_notification(session: Session, user_id: int, message: str, notif_type
     session.add(notification)
     session.commit()
     session.refresh(notification)
+
+
+def _convert_usd_to_points(usd_price: Decimal, point_value: Decimal) -> int:
+    """Convert USD cost to whole points using the market conversion rate."""
+    if point_value <= 0:
+        raise HTTPException(status_code=400, detail="Invalid point value for this market")
+    if usd_price < 0:
+        raise HTTPException(status_code=400, detail="Product price cannot be negative")
+
+    points_decimal = usd_price / point_value
+    points = int(points_decimal.to_integral_value(rounding=ROUND_HALF_UP))
+
+    # Keep positive-priced items from becoming 0 points after rounding.
+    if usd_price > 0 and points == 0:
+        points = 1
+
+    return points
 
 # -------------------------
 # USER MANAGEMENT
@@ -1213,7 +1230,7 @@ def getMarket(market_id : int, session: Session = Depends(getSession)):
     market_item = session.exec(stmt).first()
 
     if not market_item:
-        raise HTTPException(status_code=404, detail="Driver not found")
+        raise HTTPException(status_code=404, detail="market not found")
     
     return market_item
 
@@ -1612,10 +1629,15 @@ def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depe
     description = description_text[:100]
     image_url = raw_image_url[:255]
 
+    if market.Point_Value is None or market.Point_Value <= 0:
+        raise HTTPException(status_code=400, detail="Invalid point value for this market")
+
     try:
-        price = int(round(float(raw_price))) if raw_price is not None else 0
-    except (TypeError, ValueError):
-        price = 0
+        usd_price = Decimal(str(raw_price)) if raw_price is not None else Decimal("0")
+    except (InvalidOperation, TypeError, ValueError):
+        usd_price = Decimal("0")
+
+    price_in_points = _convert_usd_to_points(usd_price, market.Point_Value)
 
     try:
         product_qty = int(raw_qty)
@@ -1626,7 +1648,7 @@ def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depe
         MarketID=market_id,
         Product_Name=title,
         Product_Description=description,
-        Product_Price=price,
+        Product_Price=price_in_points,
         Product_Qty=product_qty,
         Product_Image=image_url,
         Last_Refreshed=datetime.now(timezone.utc),
@@ -1638,6 +1660,8 @@ def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depe
     return {
         "message": "Product added to market",
         "product_id": product.ProductID,
+        "price_usd": str(usd_price),
+        "price_points": product.Product_Price,
         "source_item_id": data.get("itemId"),
         "source_legacy_item_id": data.get("legacyItemId"),
     }
@@ -1702,12 +1726,7 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
         raise HTTPException(status_code=404, detail="Sponsor not found")
    
     
-    if market.Point_Value is None or market.Point_Value == 0:
-        raise HTTPException(status_code=400, detail="Invalid point value")
-    
-    cost_in_points = Decimal(product.Product_Price) / market.Point_Value
-    
-    if customer.User_Points < cost_in_points:
+    if customer.User_Points < product.Product_Price:
         raise HTTPException(status_code=400, detail="User cannot afford item. Please select another")
     
     
@@ -1766,6 +1785,10 @@ Points are to be translated as follows:
     USD to points : (Cost in USD)/(point_to_dollar_value) = points
     
     Points to USD : (points) * (point_to_dollar_value) = cost in USD
+    
+    
+    For front end: user must enter a value like this "0.99" (leading 0)
+    if the sponsor wants to set the point value below 1.
   
 """
 
@@ -1789,6 +1812,17 @@ def setPointToDollarValue(payload: PointToDollar, session : Session=Depends(getS
     
     return {"message":"Point to dollar value updated!"}
 
+
+@app.get("/product/usd_to_points")
+def convertToPoints(market_id: int, prod_price: Decimal, session: Session = Depends(getSession)):
+    market = session.exec(select(Market).where(Market.Market_ID == market_id)).first()
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found!")
+    if market.Point_Value is None:
+        raise HTTPException(status_code=400, detail="Point value not set for this market")
+
+    points = _convert_usd_to_points(prod_price, market.Point_Value)
+    return {"market_id": market_id, "usd_price": str(prod_price), "points": points}
 
 
 
