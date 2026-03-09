@@ -1134,9 +1134,6 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
         raise HTTPException(status_code=400, detail="User points cant go below zero!")
 
     sponsorship.User_Points = new_total
-
-    
-     
      
     newTransaction = Point_Transaction(
         Driver_User_ID= payload.driver_id,
@@ -1745,6 +1742,10 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     )
 
     return {"message": "Purchase completed successfully"}
+
+
+
+
 
 
 
