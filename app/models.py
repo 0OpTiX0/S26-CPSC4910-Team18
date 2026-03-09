@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from sqlmodel import Field, SQLModel
 from pydantic import BaseModel
+from decimal import Decimal
 
 
 
@@ -24,6 +25,8 @@ class Market(SQLModel, table=True):
     Market_Name : str
     Market_Description : str
     Market_Sponsor : Optional[int] = Field(foreign_key="Sponsor.Sponsor_ID", default=None)
+    Point_Value: Optional[Decimal] = Field(default=Decimal("1.00"))
+
 
 class Sponsor(SQLModel, table=True):
     __tablename__ = "Sponsor"
@@ -267,4 +270,10 @@ class Purchase(BaseModel):
     driver_id: int
     
     
+class PointToDollar(BaseModel):
+    
+    market_id: int
+    point_to_dollar_value : Decimal
+
+
 

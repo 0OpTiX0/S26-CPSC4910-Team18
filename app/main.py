@@ -2,13 +2,14 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlmodel import select, Session, delete
-from sqlalchemy import func, desc  
+from sqlalchemy import func, desc, String, cast
 from encrypt import encryptString, verifyPassword, generate_verification_code
 from datetime import datetime, timezone, timedelta
 from mailTo import emailSponsor, passwordResetEmail
 from typing import Optional, Literal
 from getEbayProduct import getEbayProduct
 from html import unescape
+from decimal import Decimal
 import csv
 import io
 import os
@@ -1701,14 +1702,13 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
         raise HTTPException(status_code=404, detail="Sponsor not found")
    
     
+    if market.Point_Value is None or market.Point_Value == 0:
+        raise HTTPException(status_code=400, detail="Invalid point value")
     
+    cost_in_points = Decimal(product.Product_Price) / market.Point_Value
     
-    if customer.User_Points < product.Product_Price:
-        raise HTTPException(status_code=400, detail="User cannot afford product")
-    
-    if product.Product_Qty < 1:
-        raise HTTPException(status_code=400, detail = "Product is out of stock!")
-    
+    if customer.User_Points < cost_in_points:
+        raise HTTPException(status_code=400, detail="User cannot afford item. Please select another")
     
     
     product.Product_Qty -= 1
@@ -1742,6 +1742,52 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     )
 
     return {"message": "Purchase completed successfully"}
+
+@app.get("/products/purchase/history")
+def getOrderHistory(driver_id:int, session: Session=Depends(getSession)):
+    stmt = select(Point_Transaction).where(
+        Point_Transaction.Driver_User_ID == driver_id,
+        cast(Point_Transaction.Reason_For_Change, String).like("%User Purchase%")
+    ) 
+    
+    transaction_history = session.exec(stmt).all()
+    
+    if not transaction_history:
+        raise HTTPException(status_code=404, detail="No purchases have been made for this user")
+    
+    
+    return transaction_history
+
+
+
+"""
+Points are to be translated as follows:  
+
+    USD to points : (Cost in USD)/(point_to_dollar_value) = points
+    
+    Points to USD : (points) * (point_to_dollar_value) = cost in USD
+  
+"""
+
+@app.patch("/market/set_point_to_dollar")
+def setPointToDollarValue(payload: PointToDollar, session : Session=Depends(getSession)):
+    
+    stmt = select(Market).where(Market.Market_ID == payload.market_id)
+    market = session.exec(stmt).first()
+    
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found!")
+    
+    if payload.point_to_dollar_value <= 0:
+        raise HTTPException(status_code=400, detail="Point-to-dollar conversion rate cannot be below or equal to 0")
+    
+    market.Point_Value = payload.point_to_dollar_value
+    
+    session.add(market)
+    session.commit()
+    session.refresh(market)
+    
+    return {"message":"Point to dollar value updated!"}
 
 
 
