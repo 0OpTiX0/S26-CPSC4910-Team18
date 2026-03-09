@@ -1213,7 +1213,7 @@ def getMarket(market_id : int, session: Session = Depends(getSession)):
     market_item = session.exec(stmt).first()
 
     if not market_item:
-        raise HTTPException(status_code=404, detail="Driver not found")
+        raise HTTPException(status_code=404, detail="market not found")
     
     return market_item
 
@@ -1766,6 +1766,10 @@ Points are to be translated as follows:
     USD to points : (Cost in USD)/(point_to_dollar_value) = points
     
     Points to USD : (points) * (point_to_dollar_value) = cost in USD
+    
+    
+    For front end: user must enter a value like this "0.99" (leading 0)
+    if the sponsor wants to set the point value below 1.
   
 """
 
