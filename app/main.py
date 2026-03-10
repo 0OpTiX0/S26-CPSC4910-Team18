@@ -33,6 +33,13 @@ app.add_middleware(
 def health():
     return {"ok": True}
 
+APP_VERSION = "1.0.0"
+app = FastAPI(version=APP_VERSION)
+
+@app.get("/version")
+def getVersion():
+    return {"version": app.version}
+
 @app.get("/about/db-status")
 def db_status(session: Session = Depends(getSession)):
     db_host = os.getenv("DB_HOST", "Unknown")
