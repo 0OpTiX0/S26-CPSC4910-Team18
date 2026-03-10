@@ -631,6 +631,36 @@ def dropDriver(
 #         "reason": driver.Suspension_Reason
 #     }
 
+@app.patch("/sponsors/reinstate_driver")
+def reinstate_driver(driver_email: str, session: Session = Depends(getSession)):
+    user = session.exec(select(User).where(User.User_Email == driver_email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == user.UserID)).first()
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    
+    sponsorship = session.exec(select(Sponsorship).where(Sponsorship.Driver_User_ID == user.UserID)).first()
+    if not sponsorship:
+        raise HTTPException(status_code=404, detail="Sponsorship not found")
+    
+    driver.Is_Suspended = False
+    driver.Suspension_Until = None
+    driver.Suspension_Reason = None
+
+    session.add(driver)
+    session.commit()
+    session.refresh(driver)
+
+    sponsorship.Membership_Status = "Active"
+
+    session.add(sponsorship)
+    session.commit()
+    session.refresh(sponsorship)
+
+    return {"message":"Driver Reinstated"}
+
 @app.get("/sponsors/{sponsor_email}/applications/pending", response_model=list[Driver_Application])
 def getPendingApplications(
     sponsor_email: str,
