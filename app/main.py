@@ -162,6 +162,20 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         User_Lockout_Time=None,
         Verification_Code=None
     )
+    # this is a commented out new user creation that encrypts all of a user's identifiable information
+    # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
+    """
+    user = User(
+        User_Name=encryptString(payload.name),
+        User_Role=encryptString(payload.role),
+        User_Email=encryptString(payload.email),
+        User_Phone_Num=encryptString(payload.phone),
+        User_Hashed_Pss=encryptString(payload.pssw),
+        User_Login_Attempts=0,
+        User_Lockout_Time=None,
+        Verification_Code=None
+    )
+    """
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -177,6 +191,15 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
             Driver_Name= user.User_Name,
             User_Points= 0
         )
+        # this is a commented out new user creation that encrypts all of a user's identifiable information
+        # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
+        """
+        newDriver = Driver_User(
+            Registered_Driver = encryptString(user.UserID),
+            Driver_Name= encryptString(user.User_Name),
+            User_Points= 0
+        )
+        """
         
         session.add(newDriver)
         session.commit()
@@ -218,6 +241,17 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
                     Sponsor_Email=payload.email,
                     Sponsor_Phone_Num=payload.phone,
                 )
+
+                # this is a commented out new user creation that encrypts all of a user's identifiable information
+                # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
+                """
+                sponsor = Sponsor(
+                    Sponsor_Name=encryptString(payload.name),
+                    Sponsor_Description="",
+                    Sponsor_Email=encryptString(payload.email),
+                    Sponsor_Phone_Num=encryptString(payload.phone),
+                )
+                """
                 session.add(sponsor)
                 session.commit()
                 session.refresh(sponsor)
@@ -854,6 +888,16 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
         Sponsor_Phone_Num=payload.phone,
     )
 
+    # this is a commented out new user creation that encrypts all of a user's identifiable information
+    # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
+    """
+    sponsor = Sponsor(
+        Sponsor_Name=encryptString(payload.name),
+        Sponsor_Description=encryptString(payload.description),
+        Sponsor_Email=encryptString(payload.email),
+        Sponsor_Phone_Num=encryptString(payload.phone),
+    )
+    """
     
     session.add(sponsor)
     session.commit()
@@ -941,7 +985,7 @@ def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(
     
     if not sponsor:
         raise HTTPException(status_code=404, detail="Requested sponsor does not exist")
-    
+    ######################NOTE FOR GABRIEL: THIS IS YOUR CURRENT LOCATION########################
     if update.type.strip().lower() == "name":
         sponsor.Sponsor_Name = update.payload
         session.add(sponsor)
