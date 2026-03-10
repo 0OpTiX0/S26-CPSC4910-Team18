@@ -1989,13 +1989,6 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     if not market:
         raise HTTPException(status_code=404, detail="Market does not exist")
     
-    stmt = select(Product).where(Product.ProductID == payload.product_id, Product.MarketID == payload.market_id)
-    product = session.exec(stmt).first()
-    
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found in specific market")
-    
-    
     stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == payload.driver_id, Sponsorship.Sponsor_ID == market.Market_Sponsor)
     customer = session.exec(stmt).first()
     if not customer:
@@ -2014,39 +2007,91 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found")
-   
-    
-    if customer.User_Points < product.Product_Price:
-        raise HTTPException(status_code=400, detail="User cannot afford item. Please select another")
     
     
-    product.Product_Qty -= 1
-    customer.User_Points -= product.Product_Price
+    stmt = select(Cart).where(Cart.DriverID == driver.Registered_Driver)
     
-    session.add(product)
+    cart = session.exec(stmt).first()
+    
+    if not cart:
+        raise HTTPException(status_code=404, detail="The cart is empty")
+    
+    if cart.CartID is None:
+        raise HTTPException(status_code=500, detail="Cart is missing an ID")
+
+    cart_items = session.exec(select(CartItem).where(CartItem.CartID == cart.CartID)).all()
+    if not cart_items:
+        raise HTTPException(status_code=404, detail="The cart is empty")
+
+    product_ids: list[int] = []
+    for cart_item in cart_items:
+        if cart_item.ProdID is None:
+            raise HTTPException(status_code=400, detail="Cart contains an invalid item")
+        if cart_item.Prod_Qty <= 0:
+            raise HTTPException(status_code=400, detail="Cart contains an item with invalid quantity")
+        product_ids.append(cart_item.ProdID)
+
+    unique_product_ids = set(product_ids)
+
+    products = session.exec(
+        select(Product).where(
+            Product.ProductID.in_(unique_product_ids),
+            Product.MarketID == payload.market_id,
+        )
+    ).all()
+    products_by_id = {product.ProductID: product for product in products if product.ProductID is not None}
+
+    if len(products_by_id) != len(unique_product_ids):
+        raise HTTPException(status_code=400, detail="Cart has products that are unavailable in this market")
+
+    total_cost = 0
+    total_items = 0
+    for cart_item in cart_items:
+        product = products_by_id[cart_item.ProdID]
+        if product.Product_Qty < cart_item.Prod_Qty:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Not enough stock for {product.Product_Name}",
+            )
+        total_cost += product.Product_Price * cart_item.Prod_Qty
+        total_items += cart_item.Prod_Qty
+
+    if customer.User_Points < total_cost:
+        raise HTTPException(status_code=400, detail="User cannot afford cart total. Please remove items and try again")
+
+    for cart_item in cart_items:
+        product = products_by_id[cart_item.ProdID]
+        product.Product_Qty -= cart_item.Prod_Qty
+        session.add(product)
+        session.delete(cart_item)
+
+    customer.User_Points -= total_cost
+    cart.Status = "Purchase Complete"
+    cart.Cart_Total = 0
+    cart.Checked_Out_At = datetime.now(timezone.utc)
     session.add(customer)
-    
-    
+    session.add(cart)
+
     transaction_log = Point_Transaction(
         Driver_User_ID=customer.Driver_User_ID,
         Driver_Name= driver.Driver_Name,
         Sponsor_Name= sponsor.Sponsor_Name,
-        Points_Change= str(0 - product.Product_Price),
+        Points_Change= str(0 - total_cost),
         Points_After_Change= customer.User_Points,
-        Reason_For_Change= "User purchase",
+        Reason_For_Change= "User Purchase - Cart Checkout",
         Created_At= datetime.now(timezone.utc)
     )
     
     session.add(transaction_log)
     session.commit()
-    session.refresh(product)
     session.refresh(customer)
     session.refresh(transaction_log)
+    session.refresh(cart)
 
     create_notification(
         session,
         payload.driver_id,
-        f"Purchase complete: {product.Product_Name} for {product.Product_Price} points. Remaining points: {customer.User_Points}",
+        f"Purchase complete: {total_items} item(s) for {total_cost} points. Remaining points: {customer.User_Points}",
         "Purchase"
     )
 
@@ -2113,9 +2158,6 @@ def convertToPoints(market_id: int, prod_price: Decimal, session: Session = Depe
 
     points = _convert_usd_to_points(prod_price, market.Point_Value)
     return {"market_id": market_id, "usd_price": str(prod_price), "points": points}
-
-
-
 
 
 
