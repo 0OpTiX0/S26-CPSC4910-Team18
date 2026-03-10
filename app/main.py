@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlmodel import select, Session, delete
@@ -168,7 +168,7 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         newDriver = Driver_User(
             Registered_Driver = user.UserID,
             Driver_Name= user.User_Name,
-            User_Points= 0  
+            User_Points= 0
         )
         
         session.add(newDriver)
@@ -426,6 +426,96 @@ def enrollDriverWithSponsor(payload: EnrollDriver, session: Session = Depends(ge
 
 
 
+@app.post("/sponsors/{uploader_email}/users/upload_csv")
+def bulkCreateUsersSponsor(
+    uploader_email: str,
+    file: UploadFile = File(...),
+    session: Session = Depends(getSession)
+):
+    sponsor = _resolve_sponsor_from_email(session, uploader_email)
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found for uploader email")
+
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Please upload a CSV file")
+
+    try:
+        contents = file.file.read().decode("utf-8-sig")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Unable to read CSV file")
+
+    reader = csv.DictReader(io.StringIO(contents))
+
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="CSV file must include headers")
+
+    required_columns = {"name", "role", "email", "phone", "pssw"}
+    missing_columns = required_columns - set(reader.fieldnames)
+
+    if missing_columns:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required columns: {', '.join(sorted(missing_columns))}"
+        )
+
+    created = []
+    errors = []
+
+    for line_number, row in enumerate(reader, start=2):
+        try:
+            role = (row.get("role") or "").strip().lower()
+
+            if role not in {"driver", "sponsor"}:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Sponsor uploads may only create driver or sponsor users"
+                )
+
+            sponsor_join_value = None
+            if role == "sponsor":
+                sponsor_join_value = sponsor.Sponsor_Email
+
+            payload = UserCreate(
+                name=(row.get("name") or "").strip(),
+                role=role,
+                sponsor_join=sponsor_join_value,
+                email=(row.get("email") or "").strip(),
+                phone=(row.get("phone") or "").strip(),
+                pssw=(row.get("pssw") or "").strip(),
+            )
+
+            result = createUser(payload, session)
+
+            created.append({
+                "line": line_number,
+                "email": result["email"],
+                "role": result["role"],
+                "userId": result["userId"]
+            })
+
+        except HTTPException as e:
+            session.rollback()
+            errors.append({
+                "line": line_number,
+                "email": row.get("email"),
+                "error": e.detail
+            })
+        except Exception as e:
+            session.rollback()
+            errors.append({
+                "line": line_number,
+                "email": row.get("email"),
+                "error": str(e)
+            })
+
+    return {
+        "message": "Sponsor CSV upload processed",
+        "sponsorId": sponsor.Sponsor_ID,
+        "created_count": len(created),
+        "error_count": len(errors),
+        "created": created,
+        "errors": errors
+    }
 
 
 @app.delete("/sponsors/drop_driver")
@@ -762,6 +852,79 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
     session.commit()
     session.refresh(sponsor)
     return sponsor
+
+@app.post("/admin/users/upload_csv")
+def bulkCreateUsersAdmin(
+    file: UploadFile = File(...),
+    session: Session = Depends(getSession)
+):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Please upload a CSV file")
+
+    try:
+        contents = file.file.read().decode("utf-8-sig")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Unable to read CSV file")
+
+    reader = csv.DictReader(io.StringIO(contents))
+
+    if not reader.fieldnames:
+        raise HTTPException(status_code=400, detail="CSV file must include headers")
+
+    required_columns = {"name", "role", "email", "phone", "pssw"}
+    missing_columns = required_columns - set(reader.fieldnames)
+
+    if missing_columns:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing required columns: {', '.join(sorted(missing_columns))}"
+        )
+
+    created = []
+    errors = []
+
+    for line_number, row in enumerate(reader, start=2):
+        try:
+            payload = UserCreate(
+                name=(row.get("name") or "").strip(),
+                role=(row.get("role") or "").strip(),
+                sponsor_join=((row.get("sponsor_join") or "").strip() or None),
+                email=(row.get("email") or "").strip(),
+                phone=(row.get("phone") or "").strip(),
+                pssw=(row.get("pssw") or "").strip(),
+            )
+
+            result = createUser(payload, session)
+
+            created.append({
+                "line": line_number,
+                "email": result["email"],
+                "role": result["role"],
+                "userId": result["userId"]
+            })
+
+        except HTTPException as e:
+            session.rollback()
+            errors.append({
+                "line": line_number,
+                "email": row.get("email"),
+                "error": e.detail
+            })
+        except Exception as e:
+            session.rollback()
+            errors.append({
+                "line": line_number,
+                "email": row.get("email"),
+                "error": str(e)
+            })
+
+    return {
+        "message": "Admin CSV upload processed",
+        "created_count": len(created),
+        "error_count": len(errors),
+        "created": created,
+        "errors": errors
+    }
 
 
 @app.patch("/admin/{sponsor_id}")
