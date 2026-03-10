@@ -275,5 +275,9 @@ class PointToDollar(BaseModel):
     market_id: int
     point_to_dollar_value : Decimal
 
+class RedeemRequest(BaseModel):
+    driver_id: int
+    product_id: int
+    quantity: int = 1
 
 
