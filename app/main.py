@@ -1351,6 +1351,25 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
     
     return statusReport
 
+@app.get("/report/transaction/{driver_id}/date_range")
+def getTransactionHistoryByDate(start_date : datetime, end_date : datetime, driver_id : int, session: Session = Depends(getSession)):
+    if start_date > end_date:
+        raise HTTPException(status_code=404, detail="Start Date greater than End Date")
+    stmt = select(Driver_User).where(Driver_User.Registered_Driver == driver_id)
+    driver = session.exec(stmt).first()
+
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    
+    stmt = select(Point_Transaction).where(Point_Transaction.Driver_User_ID == driver_id)
+    stmt = stmt.where(Point_Transaction.Created_At >= start_date)
+    stmt = stmt.where(Point_Transaction.Created_At <= end_date.replace(hour=end_date.max.hour, minute=end_date.max.minute, second=end_date.max.second))
+    statusReport = session.exec(stmt).all()
+    
+    if not statusReport:
+        raise HTTPException(status_code=404, detail=f"No Transactions between {start_date} and {end_date.replace(hour=end_date.max.hour, minute=end_date.max.minute, second=end_date.max.second)} were found for this driver")
+        
+    return statusReport
 
 #Gets a drivers user points to redeem
 @app.get("/points/{driver_id}")
