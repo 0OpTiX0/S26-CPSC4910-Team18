@@ -33,7 +33,7 @@ app.add_middleware(
 def health():
     return {"ok": True}
 
-APP_VERSION = "1.0.0"
+APP_VERSION = os.getenv("APP_VERSION", "dev")
 app = FastAPI(version=APP_VERSION)
 
 @app.get("/version")
