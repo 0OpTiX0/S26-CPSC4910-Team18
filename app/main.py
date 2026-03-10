@@ -410,9 +410,44 @@ def driverLoginAttempts(driver_email : str, session : Session = Depends(getSessi
     log_in_attempts = getLoginAttempts(driver_email, session)
     return log_in_attempts
 
+# ***This may be completely unnecessary so its commented out for the time being***
+"""
+@app.get("/sponsor/retrieve_drivers")
+def retrieveDriver(driver_name : Optional[str]=None, driver_email : Optional[str]=None, session: Session = Depends(getSession)):
+    if not driver_name and not driver_email:
+        raise HTTPException(status_code=404, detail="Enter a driver name or driver email!")
+    elif not driver_name:
+        driver = session.exec(select(User).where(User.User_Email == driver_email)).first()
 
+        if not driver:
+            raise HTTPException(status_code=404, detail="There is no driver!")
+        
+        driver_user = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == driver.UserID)).first()
 
+        if not driver_user:
+            raise HTTPException(status_code=404, detail="There is no driver user!")
 
+        return driver_user
+    elif not driver_email:
+        drivers = session.exec(select(Driver_User).where(Driver_User.Driver_Name == driver_name)).all()
+
+        if not drivers:
+            raise HTTPException(status_code=404, detail="There are not drivers!")
+
+        return drivers
+    else:
+        driver = session.exec(select(User).where(User.User_Email == driver_email)).first()
+
+        if not driver:
+            raise HTTPException(status_code=404, detail="There is no Driver!")
+        
+        driver_user = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == driver.UserID).where(Driver_User.Driver_Name == driver_name)).first()
+
+        if not driver_user:
+            raise HTTPException(status_code=404, detail="There is no driver user!")
+
+        return driver_user
+"""
 
 @app.get("/driver")
 def getDrivers(
