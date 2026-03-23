@@ -10,6 +10,7 @@ from typing import Optional, Literal
 from getEbayProduct import getEbayProduct
 from html import unescape
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import calendar
 import csv
 import io
 import os
@@ -409,6 +410,102 @@ def getSponsors(
 def driverLoginAttempts(driver_email : str, session : Session = Depends(getSession)):
     log_in_attempts = getLoginAttempts(driver_email, session)
     return log_in_attempts
+
+# This function returns the top earners in a sponsor's sponsorship program.
+# returns a list of top earners.
+# top_number specifies how many of the top earners a sponsor wants to see. EX: top 1 or top 3 or top 10 etc.
+# quarter specifies what quarter during the year that a sponsor wants to pull from.
+@app.get("/sponsors/get_top_drivers")
+def getTopDrivers(
+    sponsor_id:int,
+    top_number:int,
+    quarter:int,
+    session: Session = Depends(getSession)
+):
+    sponsor = session.exec(select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)).all()
+
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor does not exist")
+    
+    order = []
+    
+    start = datetime(datetime.now(timezone.utc).year,1 + 3*(quarter-1),1)
+    end = datetime(datetime.now(timezone.utc).year, start.month + 2,calendar.monthrange(datetime.now(timezone.utc).year, start.month + 2)[1], start.max.hour, start.max.minute, start.max.second)
+    
+    for i in sponsor:
+        transactions = session.exec(select(Point_Transaction).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
+
+        if not transactions:
+            raise HTTPException(status_code=404, detail="Transaction does not exist")
+        
+        _transactions = session.exec(select(Point_Transaction.Points_Change).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
+
+        if i.User_Points == 0:
+            continue
+
+        order.append({
+            "driver_id":i.Driver_User_ID,
+            "total":sum(list(map(int, _transactions)))
+        })
+    
+    order.sort(key=lambda order: order["total"], reverse=True)
+
+    order_final : list = []
+
+    for i in range(0, top_number):
+        if i >= len(order):
+            break
+        order_final.append(order[i])
+
+    return order_final
+
+@app.get("/sponsors/get_zero_point_drivers")
+def getZeroPointsDriverLastThirtyDays(
+    sponsor_id:int,
+    session: Session = Depends(getSession)
+):
+    sponsor = session.exec(select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)).all()
+
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor does not exist")
+    
+    order = []
+
+    no_point = False
+    for i in sponsor:
+        if i.User_Points == 0:
+            no_point = True
+            order.append({
+                "driver_id":i.Driver_User_ID,
+                "total":i.User_Points
+            })
+    
+    if no_point == True:
+        return order
+    
+    today = datetime(datetime.now(timezone.utc).year, datetime.now(timezone.utc).month, datetime.now(timezone.utc).day)
+
+    start = today - timedelta(days=30)
+    end = today
+    
+    #start = datetime(datetime.now(timezone.utc).year,today.month,1)
+    #end = datetime(datetime.now(timezone.utc).year, month,calendar.monthrange(datetime.now(timezone.utc).year,month)[1], start.max.hour, start.max.minute, start.max.second)
+
+    for i in sponsor:
+        transactions = session.exec(select(Point_Transaction).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
+
+        if not transactions:
+            raise HTTPException(status_code=404, detail="Transaction does not exist")
+        
+        _transactions = session.exec(select(Point_Transaction.Points_Change).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
+        s = sum(list(map(int, _transactions)))
+        if(s==0):
+            order.append({
+                "driver_id":transactions[0].Driver_User_ID,
+                "total":s
+            })
+
+    return order
 
 # ***This may be completely unnecessary so its commented out for the time being***
 """
@@ -1077,7 +1174,22 @@ def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(
     
     return({"message":"Sponsor Updated Successfully"})
 
-
+# TODO: I (Gabriel) need to check what needs to be returned! This works and can be altered with ease.
+@app.get("/admin/get_list_drivers")
+def getAllDriversBySponsor(
+    sponsor_id:Optional[int] = Query(None),
+    session:Session=Depends(getSession)
+):
+    if not sponsor_id:
+        driver_list = session.exec(select(Sponsorship)).all()
+        if not driver_list:
+            raise HTTPException(status_code=400, detail=f"No Drivers associated with any sponsors")
+        return driver_list
+    else:
+        driver_list = session.exec(select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)).all()
+        if not driver_list:
+            raise HTTPException(status_code=400, detail=f"no drivers associated with sponsor id -> {sponsor_id}")
+        return driver_list
 
 @app.delete("/sponsor/{sponsor_id}")
 def deleteSponsor(sponsor_id:int, session:Session=Depends(getSession)):
@@ -1386,6 +1498,7 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
     
     return statusReport
 
+# TODO: This is a note to ask if this covers the transaction history that can be searched through by sponsors.
 @app.get("/report/transaction/{driver_id}/date_range")
 def getTransactionHistoryByDate(start_date : datetime, end_date : datetime, driver_id : int, session: Session = Depends(getSession)):
     if start_date > end_date:
@@ -1565,8 +1678,37 @@ def getCart(driver_id:int,
         stmt = stmt.where(Cart.Status == status)
     
     cart = session.exec(stmt).all()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart does not exist")
     
     return cart
+
+@app.patch("/cart/{cart_id}")
+def CalculateCartTotal(cart_id:int,session:Session = Depends(getSession)):
+    stmt = select(Cart).where(Cart.CartID == cart_id)
+    cart = session.exec(stmt).first()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart does not exist")
+    
+    stmt = select(CartItem.Prod_Qty).where(CartItem.CartID == cart.CartID)
+    cart_items = session.exec(stmt).all()
+
+    if not cart_items:
+        raise HTTPException(status_code=404, detail="Cart has no items")
+    
+    total : int = 0
+    for i in cart_items:
+        total += int(i)
+    
+    cart.Cart_Total = total
+
+    session.add(cart)
+    session.commit()
+    session.refresh(cart)
+
+    return cart.Cart_Total
 
 
 # Joseph: Gabe, please patch this endpoint so that it works with the new schema 
@@ -1592,6 +1734,31 @@ def createCart(user_id: int, session: Session = Depends(getSession)):
     session.refresh(cart)
     
     return cart
+
+@app.post("/cart/cart_item/{cart_id}")
+def createCartItem(cart_id: int,
+                   prod_id: int,
+                   prod_qty: int,
+                   session: Session = Depends(getSession)):
+    cart = session.exec(select(Cart).where(Cart.CartID == cart_id)).first()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart Not Found /W DriverID!")
+
+    product_price = session.exec(select(Product.Product_Price).where(Product.ProductID == prod_id)).first()
+    
+    cart_item = CartItem(
+        CartID=cart.CartID,
+        ProdID=prod_id,
+        Prod_Qty=prod_qty,
+        Prod_Price=product_price
+    )
+
+    session.add(cart_item)
+    session.commit()
+    session.refresh(cart_item)
+    
+    return cart_item
     
 @app.delete("/cart/{driver_id}")
 def deleteCart(driver_id : int, cart_id : int, session: Session = Depends(getSession)):
