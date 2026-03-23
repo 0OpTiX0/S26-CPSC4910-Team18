@@ -410,6 +410,49 @@ def driverLoginAttempts(driver_email : str, session : Session = Depends(getSessi
     log_in_attempts = getLoginAttempts(driver_email, session)
     return log_in_attempts
 
+# This function returns the top earners in a sponsor's sponsorship program.
+# returns a list of top earners.
+# top_number specifies how many of the top earners a sponsor wants to see. EX: top 1 or top 3 or top 10 etc.
+# quarter specifies what quarter during the year that a sponsor wants to pull from.
+@app.get("/sponsors/get_top_drivers")
+def getTopDrivers(
+    sponsor_id:int,
+    top_number:int,
+    quarter:int,
+    session: Session = Depends(getSession)
+):
+    sponsor = session.exec(select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)).all()
+
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor does not exist")
+    
+    order = []
+    
+    start = datetime(datetime.now(timezone.utc).year,1 + 3*(quarter-1),1)
+    end = datetime(datetime.now(timezone.utc).year, start.month + 2,start.max.day, start.max.hour, start.max.minute, start.max.second)
+    
+    for i in sponsor:
+        transactions = session.exec(select(Point_Transaction).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
+
+        if not transactions:
+            raise HTTPException(status_code=404, detail="Transaction does not exist")
+        
+        _transactions = session.exec(select(Point_Transaction.Points_Change).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
+        
+        order.append({
+            "driver_id":transactions[0].Driver_User_ID,
+            "total":sum(list(map(int, _transactions)))
+        })
+    
+    order.sort(key=lambda order: order["total"], reverse=True)
+
+    order_final : list = []
+
+    for i in range(0, top_number):
+        order_final.append(order[i])
+
+    return order_final
+
 # ***This may be completely unnecessary so its commented out for the time being***
 """
 @app.get("/sponsor/retrieve_drivers")
@@ -1621,6 +1664,31 @@ def createCart(user_id: int, session: Session = Depends(getSession)):
     session.refresh(cart)
     
     return cart
+
+@app.post("/cart/cart_item/{cart_id}")
+def createCartItem(cart_id: int,
+                   prod_id: int,
+                   prod_qty: int,
+                   session: Session = Depends(getSession)):
+    cart = session.exec(select(Cart).where(Cart.CartID == cart_id)).first()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart Not Found /W DriverID!")
+
+    product_price = session.exec(select(Product.Product_Price).where(Product.ProductID == prod_id)).first()
+    
+    cart_item = CartItem(
+        CartID=cart.CartID,
+        ProdID=prod_id,
+        Prod_Qty=prod_qty,
+        Prod_Price=product_price
+    )
+
+    session.add(cart_item)
+    session.commit()
+    session.refresh(cart_item)
+    
+    return cart_item
     
 @app.delete("/cart/{driver_id}")
 def deleteCart(driver_id : int, cart_id : int, session: Session = Depends(getSession)):

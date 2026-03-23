@@ -90,8 +90,7 @@ class Point_Transaction(SQLModel, table=True):
     Reason_For_Change:str
     Created_At: datetime
     
-    
-############# Gabriel: There is no cart total so I commented it out for the time being. I can fix it, just give me the word. ##################
+
 class Cart(SQLModel, table=True):
     __tablename__ ="Cart"
     CartID : Optional[int] = Field(unique=True, primary_key=True)
