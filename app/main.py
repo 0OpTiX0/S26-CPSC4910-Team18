@@ -1565,6 +1565,9 @@ def getCart(driver_id:int,
         stmt = stmt.where(Cart.Status == status)
     
     cart = session.exec(stmt).all()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart does not exist")
     
     return cart
 
