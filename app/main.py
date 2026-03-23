@@ -1571,6 +1571,32 @@ def getCart(driver_id:int,
     
     return cart
 
+@app.patch("/cart/{cart_id}")
+def CalculateCartTotal(cart_id:int,session:Session = Depends(getSession)):
+    stmt = select(Cart).where(Cart.CartID == cart_id)
+    cart = session.exec(stmt).first()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="Cart does not exist")
+    
+    stmt = select(CartItem.Prod_Qty).where(CartItem.CartID == cart.CartID)
+    cart_items = session.exec(stmt).all()
+
+    if not cart_items:
+        raise HTTPException(status_code=404, detail="Cart has no items")
+    
+    total : int = 0
+    for i in cart_items:
+        total += int(i)
+    
+    cart.Cart_Total = total
+
+    session.add(cart)
+    session.commit()
+    session.refresh(cart)
+
+    return cart.Cart_Total
+
 
 # Joseph: Gabe, please patch this endpoint so that it works with the new schema 
 # Gabriel: I didn't work on this endpoint but I will fix it for you ~UWU~

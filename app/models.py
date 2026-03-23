@@ -96,7 +96,7 @@ class Cart(SQLModel, table=True):
     __tablename__ ="Cart"
     CartID : Optional[int] = Field(unique=True, primary_key=True)
     DriverID: Optional[int] = Field(foreign_key="Driver_User.Registered_Driver")
-    #Cart_Total: Optional[int] = Field(default= 0)
+    Cart_Total: Optional[int] = Field(default= 0)
     Status: str
     Created_At: datetime
     Checked_Out_At: datetime
