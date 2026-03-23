@@ -10,6 +10,7 @@ from typing import Optional, Literal
 from getEbayProduct import getEbayProduct
 from html import unescape
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import calendar
 import csv
 import io
 import os
@@ -429,7 +430,7 @@ def getTopDrivers(
     order = []
     
     start = datetime(datetime.now(timezone.utc).year,1 + 3*(quarter-1),1)
-    end = datetime(datetime.now(timezone.utc).year, start.month + 2,start.max.day, start.max.hour, start.max.minute, start.max.second)
+    end = datetime(datetime.now(timezone.utc).year, start.month + 2,calendar.monthrange(datetime.now(timezone.utc).year, start.month + 2)[1], start.max.hour, start.max.minute, start.max.second)
     
     for i in sponsor:
         transactions = session.exec(select(Point_Transaction).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
@@ -438,9 +439,12 @@ def getTopDrivers(
             raise HTTPException(status_code=404, detail="Transaction does not exist")
         
         _transactions = session.exec(select(Point_Transaction.Points_Change).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
-        
+
+        if i.User_Points == 0:
+            continue
+
         order.append({
-            "driver_id":transactions[0].Driver_User_ID,
+            "driver_id":i.Driver_User_ID,
             "total":sum(list(map(int, _transactions)))
         })
     
@@ -449,9 +453,59 @@ def getTopDrivers(
     order_final : list = []
 
     for i in range(0, top_number):
+        if i >= len(order):
+            break
         order_final.append(order[i])
 
     return order_final
+
+@app.get("/sponsors/get_zero_point_drivers")
+def getZeroPointsDriverLastThirtyDays(
+    sponsor_id:int,
+    session: Session = Depends(getSession)
+):
+    sponsor = session.exec(select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)).all()
+
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor does not exist")
+    
+    order = []
+
+    no_point = False
+    for i in sponsor:
+        if i.User_Points == 0:
+            no_point = True
+            order.append({
+                "driver_id":i.Driver_User_ID,
+                "total":i.User_Points
+            })
+    
+    if no_point == True:
+        return order
+    
+    today = datetime(datetime.now(timezone.utc).year, datetime.now(timezone.utc).month, datetime.now(timezone.utc).day)
+
+    start = today - timedelta(days=30)
+    end = today
+    
+    #start = datetime(datetime.now(timezone.utc).year,today.month,1)
+    #end = datetime(datetime.now(timezone.utc).year, month,calendar.monthrange(datetime.now(timezone.utc).year,month)[1], start.max.hour, start.max.minute, start.max.second)
+
+    for i in sponsor:
+        transactions = session.exec(select(Point_Transaction).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
+
+        if not transactions:
+            raise HTTPException(status_code=404, detail="Transaction does not exist")
+        
+        _transactions = session.exec(select(Point_Transaction.Points_Change).where(Point_Transaction.Driver_User_ID == i.Driver_User_ID).where(Point_Transaction.Created_At >= start).where(Point_Transaction.Created_At <= end)).all()
+        s = sum(list(map(int, _transactions)))
+        if(s==0):
+            order.append({
+                "driver_id":transactions[0].Driver_User_ID,
+                "total":s
+            })
+
+    return order
 
 # ***This may be completely unnecessary so its commented out for the time being***
 """
