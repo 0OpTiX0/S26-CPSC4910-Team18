@@ -1174,7 +1174,22 @@ def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(
     
     return({"message":"Sponsor Updated Successfully"})
 
-
+# TODO: I (Gabriel) need to check what needs to be returned! This works and can be altered with ease.
+@app.get("/admin/get_list_drivers")
+def getAllDriversBySponsor(
+    sponsor_id:Optional[int] = Query(None),
+    session:Session=Depends(getSession)
+):
+    if not sponsor_id:
+        driver_list = session.exec(select(Sponsorship)).all()
+        if not driver_list:
+            raise HTTPException(status_code=400, detail=f"No Drivers associated with any sponsors")
+        return driver_list
+    else:
+        driver_list = session.exec(select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)).all()
+        if not driver_list:
+            raise HTTPException(status_code=400, detail=f"no drivers associated with sponsor id -> {sponsor_id}")
+        return driver_list
 
 @app.delete("/sponsor/{sponsor_id}")
 def deleteSponsor(sponsor_id:int, session:Session=Depends(getSession)):
