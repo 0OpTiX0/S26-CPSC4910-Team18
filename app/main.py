@@ -722,46 +722,72 @@ def dropDriver(
         return{"message": f"Driver {driver.Driver_User_ID} was dropped from the program."}
 
 
-# TODO: Fix suspension logic to make compatable with new schema (For Liam)
+#Updated suspension logic for new sponsorship schema
+@app.patch("/sponsors/suspend_driver")
+def suspendDriver(
+    sponsor_id: int,
+    driver_email: str,
+    reason: str,
+    duration_minutes: int,
+    session: Session = Depends(getSession)
+):
+    if duration_minutes <= 0:
+        raise HTTPException(status_code=400, detail="duration_minutes must be greater than 0")
 
+    sponsor = session.exec(
+        select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
+    ).first()
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
 
-# @app.patch("/sponsors/suspend_driver")
-# def suspendDriver(
-#     sponsor_email: str,
-#     driver_email: str,
-#     reason: str,
-#     duration_minutes: int,
-#     session: Session = Depends(getSession)
-# ):
-#     sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == sponsor_email)).first()
-#
-#     if not sponsor:
-#         raise HTTPException(status_code=404, detail="Sponsor not found")
-#
-#     driver_user_id = session.exec(select(User.UserID).where(User.User_Email == driver_email)).first()
-#
-#     if not driver_user_id:
-#         raise HTTPException(status_code=404, detail="Driver not found")
-#
-#     driver = session.exec(
-#         select(Driver_User).where(Driver_User.Registered_Driver == driver_user_id, Driver_User.Sponsor_ID == sponsor.Sponsor_ID)).first()
-#
-#     if not driver:
-#         raise HTTPException(status_code=404, detail="Driver not linked to this sponsor")
-#
-#     driver.Is_Suspended = True
-#     driver.Suspension_Reason = reason
-#     driver.Suspension_Until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
-#
-#     session.add(driver)
-#     session.commit()
-#     session.refresh(driver)
-#
-#     return {
-#         "message": "Driver suspended successfully",
-#         "until": driver.Suspension_Until,
-#         "reason": driver.Suspension_Reason
-#     }
+    user = session.exec(
+        select(User).where(User.User_Email == driver_email)
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Driver user account not found")
+
+    driver = session.exec(
+        select(Driver_User).where(Driver_User.Registered_Driver == user.UserID)
+    ).first()
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    sponsorship = session.exec(
+        select(Sponsorship).where(
+            Sponsorship.Driver_User_ID == driver.Registered_Driver,
+            Sponsorship.Sponsor_ID == sponsor_id
+        )
+    ).first()
+    if not sponsorship:
+        raise HTTPException(status_code=404, detail="Driver is not enrolled with this sponsor")
+
+    driver.Is_Suspended = True
+    driver.Suspension_Reason = reason
+    driver.Suspension_Until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+
+    sponsorship.Membership_Status = "Suspended"
+
+    session.add(driver)
+    session.add(sponsorship)
+    session.commit()
+    session.refresh(driver)
+    session.refresh(sponsorship)
+
+    create_notification(
+        session,
+        user.UserID,
+        f"You have been suspended by {sponsor.Sponsor_Name}. Reason: {reason}. Suspension ends at {driver.Suspension_Until}.",
+        "Suspension"
+    )
+
+    return {
+        "message": "Driver suspended successfully",
+        "driver_id": driver.Registered_Driver,
+        "sponsor_id": sponsor.Sponsor_ID,
+        "membership_status": sponsorship.Membership_Status,
+        "until": driver.Suspension_Until,
+        "reason": driver.Suspension_Reason
+    }
 
 @app.patch("/sponsors/reinstate_driver")
 def reinstate_driver(driver_email: str, session: Session = Depends(getSession)):
