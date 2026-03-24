@@ -1174,7 +1174,8 @@ def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(
     
     return({"message":"Sponsor Updated Successfully"})
 
-# TODO: I (Gabriel) need to check what needs to be returned! This works and can be altered with ease.
+# It returns a list of drivers either all drivers, in the case of no sponsor id provided,
+# or returns a list of drivers filtered by a specified sponsor.
 @app.get("/admin/get_list_drivers")
 def getAllDriversBySponsor(
     sponsor_id:Optional[int] = Query(None),
@@ -1195,9 +1196,9 @@ def getAllDriversBySponsor(
             driver_list.append(driver)
         return driver_list
 
-# The admin api endpoint that returns a sponsor list based on the driver id passed
+# The admin api endpoint that returns a sponsor list based on the driver id passed.
 # if driver_id is null the full list of sponsors are returned,
-# otherwise it returns a filtered list of sponsors by the passed driver_id
+# otherwise it returns a filtered list of sponsors by the passed driver_id.
 @app.get("/admin/get_sponsor_list")
 def getSponsorList(
     driver_id:Optional[int] = Query(None),
