@@ -18,6 +18,7 @@ class User(SQLModel, table=True):
     User_Login_Attempts : int = Field(default=0)
     User_Lockout_Time : Optional[datetime] = Field(default=None)
     Verification_Code : Optional[str] = Field(default = None)
+    Notifications_Enabled: bool = Field(default=True)
 
 class Market(SQLModel, table=True):
     __tablename__ = "Market"
