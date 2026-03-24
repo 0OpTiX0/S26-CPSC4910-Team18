@@ -178,13 +178,13 @@ class UserCreate(BaseModel):
     logattp: int = 0
     lockout: Optional[datetime] = None
     verification_code: Optional[str] = None
+    timezone: Optional[str] = "UTC"
     
 class LoginRequest(BaseModel):
     email: str
     password: str
     
 
-    
 class ApplicationRequest(BaseModel):
     appEmail: str
     sponsEmail: str
@@ -208,6 +208,7 @@ class ProfileUpdateRequest(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    timezone: Optional[str] = None
 
 
 class ChangePasswordRequest(BaseModel):
@@ -240,6 +241,9 @@ class NewPointChange(BaseModel):
     points_change: int
     reason:str
     created_at: Optional[datetime] = None
+
+class NotificationPreferenceUpdate(BaseModel):
+    enabled: bool
 
 # Market Payload
 
