@@ -85,7 +85,14 @@ def validate_password_complexity(password: str):
 #Notification Helper Function
 """
 def create_notification(session: Session, user_id: int, message: str, notif_type: str):
-    
+    user = session.exec(select(User).where(User.UserID == user_id)).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not user.Notifications_Enabled:
+        return None
+
     notification = Notification(
         UserID=user_id,
         Message=message,
@@ -95,6 +102,7 @@ def create_notification(session: Session, user_id: int, message: str, notif_type
     session.add(notification)
     session.commit()
     session.refresh(notification)
+    return notification
 
 
 def _convert_usd_to_points(usd_price: Decimal, point_value: Decimal) -> int:
@@ -734,21 +742,15 @@ def suspendDriver(
     if duration_minutes <= 0:
         raise HTTPException(status_code=400, detail="duration_minutes must be greater than 0")
 
-    sponsor = session.exec(
-        select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
-    ).first()
+    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)).first()
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found")
 
-    user = session.exec(
-        select(User).where(User.User_Email == driver_email)
-    ).first()
+    user = session.exec(select(User).where(User.User_Email == driver_email)).first()
     if not user:
         raise HTTPException(status_code=404, detail="Driver user account not found")
 
-    driver = session.exec(
-        select(Driver_User).where(Driver_User.Registered_Driver == user.UserID)
-    ).first()
+    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == user.UserID)).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
 
@@ -756,8 +758,7 @@ def suspendDriver(
         select(Sponsorship).where(
             Sponsorship.Driver_User_ID == driver.Registered_Driver,
             Sponsorship.Sponsor_ID == sponsor_id
-        )
-    ).first()
+        )).first()
     if not sponsorship:
         raise HTTPException(status_code=404, detail="Driver is not enrolled with this sponsor")
 
@@ -2074,7 +2075,27 @@ def markAsRead(notification_id: int, session: Session = Depends(getSession)):
 
     return {"message": "Notification marked as read"}
 
+@app.patch("/account/{user_id}/notifications")
+def updateNotificationPreference(
+    user_id: int,
+    payload: NotificationPreferenceUpdate,
+    session: Session = Depends(getSession)
+):
+    user = session.exec(select(User).where(User.UserID == user_id)).first()
 
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.Notifications_Enabled = payload.enabled
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return {
+        "message": "Notification preference updated successfully",
+        "userId": user.UserID,
+        "notifications_enabled": user.Notifications_Enabled
+    }
 
     
  
