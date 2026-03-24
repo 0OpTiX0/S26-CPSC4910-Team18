@@ -1181,14 +1181,18 @@ def getAllDriversBySponsor(
     session:Session=Depends(getSession)
 ):
     if not sponsor_id:
-        driver_list = session.exec(select(Sponsorship)).all()
+        driver_list = session.exec(select(Driver_User)).all()
         if not driver_list:
             raise HTTPException(status_code=400, detail=f"No Drivers associated with any sponsors")
         return driver_list
     else:
-        driver_list = session.exec(select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)).all()
-        if not driver_list:
+        sponsor_list = session.exec(select(Sponsorship.Driver_User_ID).where(Sponsorship.Sponsor_ID == sponsor_id).distinct()).all()
+        if not sponsor_list:
             raise HTTPException(status_code=400, detail=f"no drivers associated with sponsor id -> {sponsor_id}")
+        driver_list : list = []
+        for i in sponsor_list:
+            driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == i)).first()
+            driver_list.append(driver)
         return driver_list
 
 # The admin api endpoint that returns a sponsor list based on the driver id passed
