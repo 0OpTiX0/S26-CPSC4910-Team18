@@ -171,6 +171,7 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         User_Lockout_Time=None,
         Verification_Code=None
         Notifications_Enabled=True
+        Time_Zone=payload.timezone or "UTC"
     )
     # this is a commented out new user creation that encrypts all of a user's identifiable information
     # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
@@ -1254,6 +1255,7 @@ def viewProfile(user_id: int, session: Session = Depends(getSession)):
         "role": user.User_Role,
         "loginAttempts": user.User_Login_Attempts,
         "lockoutTime": user.User_Lockout_Time,
+        "timezone": user.Time_Zone,
     }
 
 """
@@ -1276,7 +1278,6 @@ def updateProfile(
         user.User_Name = payload.name
 
     if payload.email:
-        # Prevent duplicate email
         existing = session.exec(
             select(User).where(User.User_Email == payload.email)
         ).first()
@@ -1292,6 +1293,9 @@ def updateProfile(
             raise HTTPException(status_code=409, detail="Phone already in use")
         user.User_Phone_Num = payload.phone
 
+    if payload.timezone:
+        user.Time_Zone = payload.timezone
+
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -1304,8 +1308,6 @@ def updateProfile(
     )
 
     return {"message": "Profile updated successfully"}
-
-
 
 
 @app.post("/account/{user_id}/request_password_change")
