@@ -170,6 +170,7 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         User_Login_Attempts=0,
         User_Lockout_Time=None,
         Verification_Code=None
+        Notifications_Enabled=True
     )
     # this is a commented out new user creation that encrypts all of a user's identifiable information
     # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
