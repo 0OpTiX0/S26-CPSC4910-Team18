@@ -19,6 +19,7 @@ class User(SQLModel, table=True):
     User_Lockout_Time : Optional[datetime] = Field(default=None)
     Verification_Code : Optional[str] = Field(default = None)
     Notifications_Enabled: bool = Field(default=True)
+    Time_Zone: str = Field(default="UTC")
 
 class Market(SQLModel, table=True):
     __tablename__ = "Market"
