@@ -1174,23 +1174,53 @@ def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(
     
     return({"message":"Sponsor Updated Successfully"})
 
-# TODO: I (Gabriel) need to check what needs to be returned! This works and can be altered with ease.
+# It returns a list of drivers either all drivers, in the case of no sponsor id provided,
+# or returns a list of drivers filtered by a specified sponsor.
 @app.get("/admin/get_list_drivers")
 def getAllDriversBySponsor(
     sponsor_id:Optional[int] = Query(None),
     session:Session=Depends(getSession)
 ):
     if not sponsor_id:
-        driver_list = session.exec(select(Sponsorship)).all()
+        driver_list = session.exec(select(Driver_User)).all()
         if not driver_list:
             raise HTTPException(status_code=400, detail=f"No Drivers associated with any sponsors")
         return driver_list
     else:
-        driver_list = session.exec(select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)).all()
-        if not driver_list:
+        sponsor_list = session.exec(select(Sponsorship.Driver_User_ID).where(Sponsorship.Sponsor_ID == sponsor_id).distinct()).all()
+        if not sponsor_list:
             raise HTTPException(status_code=400, detail=f"no drivers associated with sponsor id -> {sponsor_id}")
+        driver_list : list = []
+        for i in sponsor_list:
+            driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == i)).first()
+            driver_list.append(driver)
         return driver_list
 
+# The admin api endpoint that returns a sponsor list based on the driver id passed.
+# if driver_id is null the full list of sponsors are returned,
+# otherwise it returns a filtered list of sponsors by the passed driver_id.
+@app.get("/admin/get_sponsor_list")
+def getSponsorList(
+    driver_id:Optional[int] = Query(None),
+    session:Session=Depends(getSession)
+):
+    if not driver_id:
+        sponsor_list = session.exec(select(Sponsor)).all()
+        if not sponsor_list:
+            raise HTTPException(status_code=400, detail="No Sponsors Present")
+        return sponsor_list
+    else:
+        sponsorship_list = session.exec(select(Sponsorship.Sponsor_ID).where(Sponsorship.Driver_User_ID == driver_id).distinct()).all()
+        if not sponsorship_list:
+            raise HTTPException(status_code=400, detail="No Sponsors Present")
+        sponsor_list : list = []
+        for i in sponsorship_list:
+            sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_ID == i)).first()
+            if not sponsor:
+                raise HTTPException(status_code=400, detail="No Sponsors Present within sponsor table")
+            sponsor_list.append(sponsor)
+        return sponsor_list
+    
 @app.delete("/sponsor/{sponsor_id}")
 def deleteSponsor(sponsor_id:int, session:Session=Depends(getSession)):
     stmt = select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
