@@ -3,16 +3,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const summaryBox = document.getElementById('order-summary');
     const totalDisplay = document.getElementById('total-cost');
     const checkoutBtn = document.getElementById('checkout-btn');
-    const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user"));
+    const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user") || 'null');
+    const effectiveRole = window.GDUserView?.getEffectiveRole(session) || String(session?.role || '').toLowerCase();
+    const driverPreview = !!window.GDUserView?.isDriverViewActive?.(session);
 
     if (!session) { window.location.href = "login.html"; return; }
+    if (effectiveRole !== 'driver') {
+        window.location.href = "index.html";
+        return;
+    }
 
     let cartData = [];
     let currentBalance = 0;
 
     async function loadCart() {
         try {
-            currentBalance = await window.API.request(`/points/${session.userId}`);
+            currentBalance = driverPreview ? 0 : await window.API.request(`/points/${session.userId}`);
+            currentBalance = typeof currentBalance === 'number' ? currentBalance : (currentBalance?.total_points || 0);
             
             cartData = JSON.parse(localStorage.getItem("gd_cart")) || [];
 
@@ -25,6 +32,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             cartContainer.innerHTML = '';
+            if (driverPreview) {
+                cartContainer.insertAdjacentHTML('beforeend', `
+                    <div class="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+                        <strong>Preview cart:</strong> sponsor users can review the cart flow here, but checkout is disabled in Driver View.
+                    </div>
+                `);
+            }
             let total = 0;
 
             cartData.forEach(item => {
@@ -49,7 +63,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             totalDisplay.textContent = `${total} pts`;
             summaryBox.classList.remove('hidden');
             
-            if (currentBalance < total) {
+            if (driverPreview) {
+                checkoutBtn.disabled = true;
+                checkoutBtn.textContent = "Preview Only";
+                checkoutBtn.className = "w-full bg-amber-100 text-amber-700 py-4 rounded-2xl font-black cursor-not-allowed";
+            } else if (currentBalance < total) {
                 checkoutBtn.disabled = true;
                 checkoutBtn.textContent = "Insufficient Points";
                 checkoutBtn.className = "w-full bg-slate-700 text-slate-500 py-4 rounded-2xl font-black cursor-not-allowed";
@@ -64,8 +82,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     checkoutBtn.addEventListener('click', async () => {
+        if (driverPreview) {
+            alert('Checkout is disabled while previewing Driver View as a sponsor user.');
+            return;
+        }
+
         const total = parseInt(totalDisplay.textContent);
-        
         const confirmed = confirm(`Redeem ${cartData.length} items for ${total} points?`);
         if (!confirmed) return;
 
@@ -80,7 +102,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             localStorage.removeItem("gd_cart");
-            
             alert("Order Successful! Your rewards are on the way.");
             window.location.href = "store_catalog.html";
         } catch (err) {
@@ -90,11 +111,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.removeItem = (cartId) => {
         let localCart = JSON.parse(localStorage.getItem("gd_cart")) || [];
-        
         localCart = localCart.filter(item => item.Cart_ID !== cartId);
-        
         localStorage.setItem("gd_cart", JSON.stringify(localCart));
-        
         loadCart();
     };
 

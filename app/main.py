@@ -20,7 +20,9 @@ from db import getSession
 
 from models import *
 
-app = FastAPI()
+##app = FastAPI()
+APP_VERSION = os.getenv("APP_VERSION", "dev")
+app = FastAPI(version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,13 +31,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 @app.get("/health")
 def health():
     return {"ok": True}
-
-APP_VERSION = os.getenv("APP_VERSION", "dev")
-app = FastAPI(version=APP_VERSION)
 
 @app.get("/version")
 def getVersion():

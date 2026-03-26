@@ -114,7 +114,7 @@
       userActions?.classList.remove("hidden");
       welcomeLine.textContent = `Welcome back, ${user.name || "Driver"}.`;
       
-      const role = (user.role || "").toLowerCase();
+      const role = window.GDUserView?.getEffectiveRole(user) || (user.role || "").toLowerCase();
       if (role.includes("sponsor")) {
         dashboardLink.href = "sponsor_applications.html";
         dashboardLink.textContent = "Application View";

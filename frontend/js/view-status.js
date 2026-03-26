@@ -1,32 +1,43 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const listContainer = document.getElementById('applications-list');
-    const storedUser = JSON.parse(sessionStorage.getItem('gd_user'));
+    const storedUser = JSON.parse(sessionStorage.getItem('gd_user') || localStorage.getItem('gd_user') || 'null');
+    const effectiveRole = window.GDUserView?.getEffectiveRole(storedUser) || String(storedUser?.role || '').toLowerCase();
+    const driverPreview = !!window.GDUserView?.isDriverViewActive?.(storedUser);
 
-    if (!storedUser) 
-    {
+    if (!storedUser) {
         window.location.href = 'login.html';
         return;
     }
 
-    try 
-    {
+    if (effectiveRole !== 'driver') {
+        window.location.href = 'index.html';
+        return;
+    }
+
+    if (driverPreview) {
+        listContainer.innerHTML = `
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-amber-900 text-center">
+                <h2 class="text-xl font-bold mb-2">Driver Application Status Preview</h2>
+                <p class="text-sm">Sponsor users can open this page in Driver View, but real application history is only shown for actual driver accounts.</p>
+            </div>
+        `;
+        return;
+    }
+
+    try {
         const apps = await window.API.request(`/application?applicant_email=${storedUser.email}`);
-        
         const sponsors = await window.API.request('/sponsors');
         const sponsorMap = Object.fromEntries(sponsors.map(s => [s.Sponsor_ID, s.Sponsor_Name]));
 
-        listContainer.innerHTML = ''; 
+        listContainer.innerHTML = '';
 
-        if (apps.length === 0) 
-        {
+        if (apps.length === 0) {
             listContainer.innerHTML = `<p class="text-slate-500 text-center py-10">No applications found.</p>`;
             return;
         }
 
-        apps.forEach(app => 
-        {
-            const date = new Date(app.Submitted_At).toLocaleDateString('en-US', 
-            {
+        apps.forEach(app => {
+            const date = new Date(app.Submitted_At).toLocaleDateString('en-US', {
                 month: 'long', day: 'numeric', year: 'numeric'
             });
 
@@ -47,8 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             `;
         });
-    } catch (error) 
-    {
+    } catch (error) {
         listContainer.innerHTML = `<p class="text-red-500 text-center">Failed to load applications.</p>`;
     }
 });
