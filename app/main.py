@@ -163,20 +163,7 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         User_Lockout_Time=None,
         Verification_Code=None
     )
-    # this is a commented out new user creation that encrypts all of a user's identifiable information
-    # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
-    """
-    user = User(
-        User_Name=encryptString(payload.name),
-        User_Role=encryptString(payload.role),
-        User_Email=encryptString(payload.email),
-        User_Phone_Num=encryptString(payload.phone),
-        User_Hashed_Pss=encryptString(payload.pssw),
-        User_Login_Attempts=0,
-        User_Lockout_Time=None,
-        Verification_Code=None
-    )
-    """
+  
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -189,18 +176,9 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         
         newDriver = Driver_User(
             Registered_Driver = user.UserID,
-            Driver_Name= user.User_Name,
-            User_Points= 0
+            Driver_Name= user.User_Name
         )
-        # this is a commented out new user creation that encrypts all of a user's identifiable information
-        # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
-        """
-        newDriver = Driver_User(
-            Registered_Driver = encryptString(user.UserID),
-            Driver_Name= encryptString(user.User_Name),
-            User_Points= 0
-        )
-        """
+     
         
         session.add(newDriver)
         session.commit()
@@ -1182,7 +1160,7 @@ def getAllDriversBySponsor(
     session:Session=Depends(getSession)
 ):
     if not sponsor_id:
-        driver_list = session.exec(select(Driver_User)).all()
+        driver_list = list(session.exec(select(Driver_User)).all())
         if not driver_list:
             raise HTTPException(status_code=400, detail=f"No Drivers associated with any sponsors")
         return driver_list
@@ -1205,7 +1183,7 @@ def getSponsorList(
     session:Session=Depends(getSession)
 ):
     if not driver_id:
-        sponsor_list = session.exec(select(Sponsor)).all()
+        sponsor_list: list = list(session.exec(select(Sponsor)).all())
         if not sponsor_list:
             raise HTTPException(status_code=400, detail="No Sponsors Present")
         return sponsor_list
@@ -1777,6 +1755,9 @@ def createCartItem(cart_id: int,
 
     product_price = session.exec(select(Product.Product_Price).where(Product.ProductID == prod_id)).first()
     
+    if product_price is None:
+        raise HTTPException(status_code=404, detail="Product not found or has no price")
+    
     cart_item = CartItem(
         CartID=cart.CartID,
         ProdID=prod_id,
@@ -2232,7 +2213,7 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
 
     products = session.exec(
         select(Product).where(
-            Product.ProductID.in_(unique_product_ids),
+            Product.ProductID.in_(list(unique_product_ids)),
             Product.MarketID == payload.market_id,
         )
     ).all()
@@ -2244,6 +2225,8 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     total_cost = 0
     total_items = 0
     for cart_item in cart_items:
+        if cart_item.ProdID is None:
+            raise HTTPException(status_code=400, detail="Cart contains an invalid item")
         product = products_by_id[cart_item.ProdID]
         if product.Product_Qty < cart_item.Prod_Qty:
             raise HTTPException(
@@ -2257,6 +2240,8 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
         raise HTTPException(status_code=400, detail="User cannot afford cart total. Please remove items and try again")
 
     for cart_item in cart_items:
+        if cart_item.ProdID is None:
+            raise HTTPException(status_code=400, detail="Cart contains an invalid item")
         product = products_by_id[cart_item.ProdID]
         product.Product_Qty -= cart_item.Prod_Qty
         session.add(product)

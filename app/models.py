@@ -93,7 +93,7 @@ class Point_Transaction(SQLModel, table=True):
 
 class Cart(SQLModel, table=True):
     __tablename__ ="Cart"
-    CartID : Optional[int] = Field(unique=True, primary_key=True)
+    CartID : Optional[int] = Field(unique=True, primary_key=True, default= None)
     DriverID: Optional[int] = Field(foreign_key="Driver_User.Registered_Driver")
     Cart_Total: Optional[int] = Field(default= 0)
     Status: str
@@ -114,7 +114,7 @@ class Product(SQLModel, table=True):
     
 class CartItem(SQLModel, table=True):
     __tablename__ = "Cart_Item"
-    Cart_Item_ID: Optional[int] = Field(unique=True, primary_key=True)
+    Cart_Item_ID: Optional[int] = Field(unique=True, primary_key=True, default = None)
     CartID: Optional[int] = Field(foreign_key="Cart.CartID")
     ProdID: Optional[int] = Field(foreign_key="Product.ProductID")
     Prod_Qty: int
