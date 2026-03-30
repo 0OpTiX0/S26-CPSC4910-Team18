@@ -3,53 +3,129 @@ document.addEventListener('DOMContentLoaded', async () => {
     const catalogContainer = document.getElementById('catalog-container');
     const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user"));
 
-    async function loadHeaderStats() {
+    if (!session) {
+        window.location.href = "login.html";
+        return;
+    }
+
+    // Dynamic state variables
+    let currentSponsorId = null;
+    let currentMarketId = null;
+
+    // --- 1. Robust Context Initialization ---
+    async function initializeStoreContext() {
         try {
-            const points = await window.API.request(`/points/${session.userId}`);
+            const sponsorships = await window.API.request(`/admin/get_sponsor_list?driver_id=${session.userId}`);
+            
+            // Check if it's an array and has items
+            if (Array.isArray(sponsorships) && sponsorships.length > 0) {
+                currentSponsorId = sponsorships[0].Sponsor_ID;
+            } else {
+                console.warn("Could not find a sponsor via /admin/get_sponsor_list. Attempting fallback...");
+                // Fallback: If your app has a default sponsor (e.g., ID 1), use it so testing doesn't halt.
+                currentSponsorId = 1; 
+            }
+
+            const savedMarketKey = `gd_market_id_sponsor_${currentSponsorId}`;
+            currentMarketId = localStorage.getItem(savedMarketKey) || 1; 
+
+            return true;
+        } catch (error) {
+            console.error("Failed to initialize store context:", error);
+            // Fallback for total failure
+            currentSponsorId = 1;
+            currentMarketId = 1;
+            return true;
+        }
+    }
+
+    // --- 2. Load Stats ---
+    async function loadHeaderStats() {
+        // Guard clause to prevent 422s!
+        if (!currentSponsorId) {
+            console.error("CRITICAL: currentSponsorId is null. Cannot fetch points.");
+            updateCartUI(0);
+            return;
+        }
+
+        try {
+            // Added cache buster to points so the balance is always fresh
+            const cacheBuster = Date.now();
+            const points = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
             pointsDisplay.textContent = points;
 
-            const localCart = JSON.parse(localStorage.getItem("gd_cart")) || [];
-            updateCartUI(localCart.length);
+            const cartWrapper = await window.API.request(`/cart/${session.userId}?status=Pending`);
+            
+            if (cartWrapper && cartWrapper.length > 0) {
+                updateCartUI("!");
+            } else {
+                updateCartUI(0);
+            }
         } catch (error) {
             console.error("Header sync failed:", error);
+            updateCartUI(0);
         }
     }
 
     function updateCartUI(count) {
-        let badge = document.getElementById('cart-count-badge');
-        if (!badge) {
+        let cart_count = document.getElementById('cart-count-badge');
+        if (!cart_count) {
             const cartLink = document.querySelector('a[href="cart.html"]') || document.querySelector('nav');
-            badge = document.createElement('span');
-            badge.id = 'cart-count-badge';
-            badge.className = "ml-1 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full";
-            cartLink.appendChild(badge);
+            cart_count = document.createElement('span');
+            cart_count.id = 'cart-count-badge';
+            cart_count.className = "absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white";
+            cartLink.appendChild(cart_count);
         }
-        badge.textContent = count;
+        cart_count.textContent = count;
+        cart_count.style.display = count !== 0 ? 'flex' : 'none'; 
     }
 
-    const mockProducts = [
-        {
-            id: "ebay-test-001",
-            name: "Sony Wireless Noise Cancelling Headphones",
-            image: "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&w=600&q=80",
-            price_pts: 5
+    function showError(message) {
+        if (catalogContainer) {
+            catalogContainer.innerHTML = `
+                <div class="p-12 text-center col-span-full text-red-500 font-bold border-2 border-dashed border-red-200 rounded-3xl bg-red-50">
+                    ${message}
+                </div>`;
         }
-    ];
+    }
 
-    function renderCatalog() {
-        if (!catalogContainer) return;
+    // --- 3. Load Catalog ---
+    async function loadProducts() {
+        if (!catalogContainer || !currentMarketId) return;
+        
+        try {
+            const products = await window.API.request(`/products/${currentMarketId}`);
+
+            if (!products || products.length === 0) {
+                catalogContainer.innerHTML = `
+                    <div class="p-12 text-center col-span-full border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50">
+                        <p class="text-slate-500 font-medium italic">Your sponsor hasn't added any products to this market yet.</p>
+                    </div>`;
+                return;
+            }
+
+            renderCatalog(products);
+        } catch (error) {
+            console.error("Failed to load products:", error);
+            showError("Failed to load catalog. Ensure your backend is running.");
+        }
+    }
+
+    function renderCatalog(products) {
         catalogContainer.innerHTML = '';
 
-        mockProducts.forEach(product => {
+        products.forEach(product => {
             const card = document.createElement('div');
-            card.className = "bg-white rounded-3xl border border-slate-200 overflow-hidden p-4";
+            card.className = "bg-white rounded-3xl border border-slate-200 overflow-hidden p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col";
     
             card.innerHTML = `
-                <img src="${product.image}" class="w-full h-40 object-cover rounded-2xl mb-4">
-                <h3 class="font-bold text-slate-900">${product.name}</h3>
-                <p class="text-blue-600 font-black mb-4">${product.price_pts} pts</p>
-                <button onclick="addToCart('${product.id}', '${product.name.replace(/'/g, "\\'")}')" 
-                        class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-600 transition-colors">
+                <img src="${product.Product_Image || 'https://via.placeholder.com/600'}" alt="Product Image" class="w-full h-40 object-cover rounded-2xl mb-4">
+                <h3 class="font-bold text-slate-900 line-clamp-2 mb-2 flex-grow" title="${product.Product_Name}">${product.Product_Name}</h3>
+                <p class="text-xs text-slate-500 line-clamp-2 mb-4" title="${product.Product_Description}">${product.Product_Description || "No description."}</p>
+                <p class="text-blue-600 font-black mb-4">${product.Product_Price} pts</p>
+                
+                <button onclick="addToCart(${product.ProductID}, '${product.Product_Name.replace(/'/g, "\\'")}')" 
+                        class="w-full mt-auto bg-slate-900 text-white py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-600 transition-colors">
                     Add to Cart
                 </button>
             `;
@@ -57,29 +133,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // --- 4. Add to Cart Logic ---
     window.addToCart = async (productId, productName) => {
-        const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user"));
-        if (!session) {
-            alert("Please log in again.");
-            return;
+        try {
+            // Step 1: Hit the POST endpoint directly. The backend will automatically find your active cart or create one!
+            const activeCart = await window.API.request(`/cart/${session.userId}`, {
+                method: "POST"
+            });
+
+            if (!activeCart || !activeCart.CartID) {
+                throw new Error("Could not create or locate a Cart ID.");
+            }
+
+            // Step 2: Add the specific item to that guaranteed cart
+            await window.API.request(`/cart/cart_item/${activeCart.CartID}?prod_id=${productId}&prod_qty=1`, {
+                method: "POST"
+            });
+
+            alert(`${productName} added to your cart!`);
+            loadHeaderStats(); // Refresh the UI badge
+            
+        } catch (err) {
+            console.error("Cart Error:", err);
+            const msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
+            alert(`Failed to add to cart: ${msg}`);
         }
-
-        let localCart = JSON.parse(localStorage.getItem("gd_cart")) || [];
-
-        localCart.push({
-            Cart_ID: Date.now(), 
-            product_id: productId,
-            product_name: productName,
-            price: 5 
-        });
-
-        localStorage.setItem("gd_cart", JSON.stringify(localCart));
-
-        alert(`${productName} added to your cart!`);
-        
-        updateCartUI(localCart.length);
     };
 
-    loadHeaderStats();
-    renderCatalog();
+    // --- Boot Sequence ---
+    async function init() {
+        const hasContext = await initializeStoreContext();
+        if (hasContext) {
+            loadHeaderStats();
+            loadProducts();
+        }
+    }
+
+    init();
 });
