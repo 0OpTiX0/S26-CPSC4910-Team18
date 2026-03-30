@@ -2,13 +2,14 @@ from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlmodel import select, Session, delete
-from sqlalchemy import func, desc, String, cast
+from sqlalchemy import func, desc, String, Integer, cast
 from encrypt import encryptString, verifyPassword, generate_verification_code
 from datetime import datetime, timezone, timedelta
 from mailTo import emailSponsor, passwordResetEmail
 from typing import Optional, Literal
 from getEbayProduct import getEbayProduct
 from html import unescape
+from sponsorInvRow import _get_sponsor_invoice_rows
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import calendar
 import csv
@@ -36,6 +37,54 @@ def health():
 
 APP_VERSION = os.getenv("APP_VERSION", "dev")
 app = FastAPI(version=APP_VERSION)
+
+# -------------------------
+# BACKEND TODO BACKLOG
+# -------------------------
+#
+# These TODOs are based on the unmet/partial base requirements from the
+# Good Driver Incentive Program feature breakdown. Keep this list updated
+# as items are completed so the backend status is visible in-code.
+#
+# Core system
+
+#
+
+
+#
+# Notifications
+# TODO: Create a mandatory dropped-from-sponsor notification when a sponsor removes a driver.
+
+
+# TODO: Add persisted notification preferences for point change alerts and order summary alerts.
+#
+# Catalog / purchases
+
+       
+
+        
+            
+        
+
+
+# TODO: Add purchase cancellation/update rules if the business wants reversible orders.
+# TODO: Add backend content filtering or moderation rules for G/PG-only catalog items.
+
+# TODO: Define what "real-time catalog updates" means and implement scheduled refresh or refresh-on-read behavior.
+#
+# Sponsor / admin management
+# TODO: Add sponsor-user disable/enable functionality.
+# TODO: Add admin-side disable/enable functionality for any user account.
+
+#
+
+# TODO: Define summary vs detailed reporting views in backend response models.
+# TODO: Finish CSV export coverage for any report types still missing.
+#
+# Deployment / quality
+
+# TODO: Add CI/CD workflow configuration to the repository.
+# TODO: Document and verify deployment targets, hosted database requirements, and environment config management.
 
 @app.get("/version")
 def getVersion():
@@ -485,44 +534,6 @@ def getZeroPointsDriverLastThirtyDays(
 
     return order
 
-# ***This may be completely unnecessary so its commented out for the time being***
-"""
-@app.get("/sponsor/retrieve_drivers")
-def retrieveDriver(driver_name : Optional[str]=None, driver_email : Optional[str]=None, session: Session = Depends(getSession)):
-    if not driver_name and not driver_email:
-        raise HTTPException(status_code=404, detail="Enter a driver name or driver email!")
-    elif not driver_name:
-        driver = session.exec(select(User).where(User.User_Email == driver_email)).first()
-
-        if not driver:
-            raise HTTPException(status_code=404, detail="There is no driver!")
-        
-        driver_user = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == driver.UserID)).first()
-
-        if not driver_user:
-            raise HTTPException(status_code=404, detail="There is no driver user!")
-
-        return driver_user
-    elif not driver_email:
-        drivers = session.exec(select(Driver_User).where(Driver_User.Driver_Name == driver_name)).all()
-
-        if not drivers:
-            raise HTTPException(status_code=404, detail="There are not drivers!")
-
-        return drivers
-    else:
-        driver = session.exec(select(User).where(User.User_Email == driver_email)).first()
-
-        if not driver:
-            raise HTTPException(status_code=404, detail="There is no Driver!")
-        
-        driver_user = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == driver.UserID).where(Driver_User.Driver_Name == driver_name)).first()
-
-        if not driver_user:
-            raise HTTPException(status_code=404, detail="There is no driver user!")
-
-        return driver_user
-"""
 
 @app.get("/driver")
 def getDrivers(
@@ -676,6 +687,8 @@ def dropDriver(
     drop_reason : Optional[str] = Query(None),
     session : Session = Depends(getSession)
 ):
+    # TODO: When a driver is dropped, create a mandatory notification for the affected driver.
+    # TODO: Revisit whether this endpoint should also update membership status instead of deleting the link outright.
     stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == user_id)
     driver = session.exec(stmt).first()
     
@@ -1028,16 +1041,7 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
         Sponsor_Phone_Num=payload.phone,
     )
 
-    # this is a commented out new user creation that encrypts all of a user's identifiable information
-    # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
-    """
-    sponsor = Sponsor(
-        Sponsor_Name=encryptString(payload.name),
-        Sponsor_Description=encryptString(payload.description),
-        Sponsor_Email=encryptString(payload.email),
-        Sponsor_Phone_Num=encryptString(payload.phone),
-    )
-    """
+
     
     session.add(sponsor)
     session.commit()
@@ -1290,7 +1294,7 @@ def updateProfile(
 
 @app.post("/account/{user_id}/request_password_change")
 def requestPswChange(user_id: int, session : Session=Depends(getSession)):
-    
+    # TODO: Add token expiration metadata and invalidate old reset tokens on new requests.
     stmt = select(User).where(User.UserID == user_id)
     user = session.exec(stmt).first()
     
@@ -1315,6 +1319,7 @@ def requestPswChange(user_id: int, session : Session=Depends(getSession)):
 
 @app.post("/account/{user_id}/verify_token")
 def verifyToken(user_id: int,tokenAttempt: str, session: Session = Depends(getSession)):
+    # TODO: Enforce reset token expiry and one-time-use semantics.
     stmt = select(User).where(User.UserID == user_id)
     user = session.exec(stmt).first()
     
@@ -1358,12 +1363,6 @@ def changePassword(
     session.add(user)
     session.commit()
 
-   # create_notification(
-   #     session,
-   #     user.UserID,
-   #     "Your password was successfully changed.",
-   #     "Security"
-   # )
     
     newPasswordChange = PasswordChangeLog(
         user_id= user.UserID,
@@ -1394,6 +1393,128 @@ def getAllPasswordLogs(userid: Optional[int] = Query(None), session:Session =Dep
 # -------------------------
 # REPORTS
 # -------------------------
+
+def _audit_log_timestamp(entry: dict):
+    timestamp = entry.get("timestamp")
+    if isinstance(timestamp, datetime):
+        return timestamp
+    return datetime.min.replace(tzinfo=timezone.utc)
+
+
+@app.get("/report/audit")
+def getGlobalAuditLogReport(
+    event_type: Optional[str] = Query(None),
+    user_id: Optional[int] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    limit: int = Query(200, ge=1, le=1000),
+    session: Session = Depends(getSession),
+):
+    audit_entries = []
+
+    password_stmt = select(PasswordChangeLog)
+    if user_id is not None:
+        password_stmt = password_stmt.where(PasswordChangeLog.user_id == user_id)
+    if start_date is not None:
+        password_stmt = password_stmt.where(PasswordChangeLog.ChangedAt >= start_date)
+    if end_date is not None:
+        password_stmt = password_stmt.where(PasswordChangeLog.ChangedAt <= end_date)
+
+    decision_stmt = select(MembershipDecisionLog)
+    if user_id is not None:
+        decision_stmt = decision_stmt.where(MembershipDecisionLog.Driver_ID == user_id)
+    if start_date is not None:
+        decision_stmt = decision_stmt.where(MembershipDecisionLog.Decision_Made_At >= start_date)
+    if end_date is not None:
+        decision_stmt = decision_stmt.where(MembershipDecisionLog.Decision_Made_At <= end_date)
+
+    transaction_stmt = select(Point_Transaction)
+    if user_id is not None:
+        transaction_stmt = transaction_stmt.where(Point_Transaction.Driver_User_ID == user_id)
+    if start_date is not None:
+        transaction_stmt = transaction_stmt.where(Point_Transaction.Created_At >= start_date)
+    if end_date is not None:
+        transaction_stmt = transaction_stmt.where(Point_Transaction.Created_At <= end_date)
+
+    report_stmt = select(UserReports)
+    if user_id is not None:
+        report_stmt = report_stmt.where(UserReports.UserID == user_id)
+    if start_date is not None:
+        report_stmt = report_stmt.where(UserReports.Created_At >= start_date)
+    if end_date is not None:
+        report_stmt = report_stmt.where(UserReports.Created_At <= end_date)
+
+    if event_type in (None, "password_change"):
+        for log in session.exec(password_stmt).all():
+            audit_entries.append(
+                {
+                    "event_type": "password_change",
+                    "timestamp": log.ChangedAt,
+                    "record_id": log.Log_ID,
+                    "user_id": log.user_id,
+                    "actor": log.UserName,
+                    "details": {
+                        "user_type": log.User_Type,
+                    },
+                }
+            )
+
+    if event_type in (None, "membership_decision"):
+        for log in session.exec(decision_stmt).all():
+            audit_entries.append(
+                {
+                    "event_type": "membership_decision",
+                    "timestamp": log.Decision_Made_At,
+                    "record_id": log.DecisionID,
+                    "user_id": log.Driver_ID,
+                    "actor": log.AuthorizedBy,
+                    "details": {
+                        "driver_name": log.Driver_Name,
+                        "decision": log.Decision,
+                        "reason": log.Reason,
+                        "sponsor": log.Sponsor,
+                    },
+                }
+            )
+
+    if event_type in (None, "point_transaction"):
+        for log in session.exec(transaction_stmt).all():
+            audit_entries.append(
+                {
+                    "event_type": "point_transaction",
+                    "timestamp": log.Created_At,
+                    "record_id": log.TransactionID,
+                    "user_id": log.Driver_User_ID,
+                    "actor": log.Sponsor_Name,
+                    "details": {
+                        "driver_name": log.Driver_Name,
+                        "points_change": log.Points_Change,
+                        "points_after_change": log.Points_After_Change,
+                        "reason": log.Reason_For_Change,
+                    },
+                }
+            )
+
+    if event_type in (None, "user_report"):
+        for log in session.exec(report_stmt).all():
+            audit_entries.append(
+                {
+                    "event_type": "user_report",
+                    "timestamp": log.Created_At,
+                    "record_id": log.AuditID,
+                    "user_id": log.UserID,
+                    "actor": log.UserID,
+                    "details": {
+                        "category": log.Category,
+                        "issue_type": log.Issue_Type,
+                        "status": log.Status,
+                        "issue_description": log.Issue_Description,
+                    },
+                }
+            )
+
+    audit_entries.sort(key=_audit_log_timestamp, reverse=True)
+    return audit_entries[:limit]
 
 # Gets all user reports
 @app.get("/report")
@@ -1527,6 +1648,168 @@ def getTransactionHistoryByDate(start_date : datetime, end_date : datetime, driv
         
     return statusReport
 
+
+
+@app.get("/report/sales/driver")
+def getSalesByDriverReport(
+    driver_id: Optional[int] = Query(None),
+    sponsor_name: Optional[str] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    session: Session = Depends(getSession),
+):
+    total_sales_expr = (-func.sum(cast(Point_Transaction.Points_Change, Integer))).label("total_sales")
+    purchase_count_expr = func.count(Point_Transaction.TransactionID).label("purchase_count")
+    latest_purchase_expr = func.max(Point_Transaction.Created_At).label("latest_purchase_at")
+
+    stmt = (
+        select(  # type: ignore[arg-type]
+            Point_Transaction.Driver_User_ID.label("driver_id"),
+            Point_Transaction.Driver_Name.label("driver_name"),
+            Point_Transaction.Sponsor_Name.label("sponsor_name"),
+            total_sales_expr,
+            purchase_count_expr,
+            latest_purchase_expr,
+        )
+        .where(cast(Point_Transaction.Reason_For_Change, String).like("%User Purchase%"))
+        .group_by(
+            Point_Transaction.Driver_User_ID,
+            Point_Transaction.Driver_Name,
+            Point_Transaction.Sponsor_Name,
+        )
+        .order_by(desc(total_sales_expr), desc(latest_purchase_expr))
+        .limit(limit)
+    )
+
+    if driver_id is not None:
+        stmt = stmt.where(Point_Transaction.Driver_User_ID == driver_id)
+    if sponsor_name is not None:
+        stmt = stmt.where(func.lower(Point_Transaction.Sponsor_Name) == sponsor_name.lower())
+    if start_date is not None:
+        stmt = stmt.where(Point_Transaction.Created_At >= start_date)
+    if end_date is not None:
+        stmt = stmt.where(Point_Transaction.Created_At <= end_date)
+
+    sales = session.exec(stmt).all()
+
+    return [
+        {
+            "driver_id": sale.driver_id,
+            "driver_name": sale.driver_name,
+            "sponsor_name": sale.sponsor_name,
+            "total_sales": int(sale.total_sales or 0),
+            "purchase_count": int(sale.purchase_count or 0),
+            "latest_purchase_at": sale.latest_purchase_at,
+        }
+        for sale in sales
+    ]
+
+
+@app.get("/report/sales/sponsor")
+def getSalesBySponsorReport(
+    sponsor_name: Optional[str] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    session: Session = Depends(getSession),
+):
+    total_sales_expr = (-func.sum(cast(Point_Transaction.Points_Change, Integer))).label("total_sales")
+    purchase_count_expr = func.count(Point_Transaction.TransactionID).label("purchase_count")
+    driver_count_expr = func.count(func.distinct(Point_Transaction.Driver_User_ID)).label("driver_count")
+    latest_purchase_expr = func.max(Point_Transaction.Created_At).label("latest_purchase_at")
+
+    stmt = (
+        select(  # type: ignore[arg-type]
+            Point_Transaction.Sponsor_Name.label("sponsor_name"),
+            total_sales_expr,
+            purchase_count_expr,
+            driver_count_expr,
+            latest_purchase_expr,
+        )
+        .where(cast(Point_Transaction.Reason_For_Change, String).like("%User Purchase%"))
+        .group_by(Point_Transaction.Sponsor_Name)
+        .order_by(desc(total_sales_expr), desc(latest_purchase_expr))
+        .limit(limit)
+    )
+
+    if sponsor_name is not None:
+        stmt = stmt.where(func.lower(Point_Transaction.Sponsor_Name) == sponsor_name.lower())
+    if start_date is not None:
+        stmt = stmt.where(Point_Transaction.Created_At >= start_date)
+    if end_date is not None:
+        stmt = stmt.where(Point_Transaction.Created_At <= end_date)
+
+    sales = session.exec(stmt).all()
+
+    return [
+        {
+            "sponsor_name": sale.sponsor_name,
+            "total_sales": int(sale.total_sales or 0),
+            "purchase_count": int(sale.purchase_count or 0),
+            "driver_count": int(sale.driver_count or 0),
+            "latest_purchase_at": sale.latest_purchase_at,
+        }
+        for sale in sales
+    ]
+
+
+
+
+@app.get("/report/invoices/sponsor")
+def getSponsorInvoiceReport(
+    sponsor_name: Optional[str] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    session: Session = Depends(getSession),
+):
+    return _get_sponsor_invoice_rows(session, sponsor_name, start_date, end_date, limit)
+
+
+@app.get("/report/invoices/sponsor/export")
+def exportSponsorInvoiceReport(
+    sponsor_name: Optional[str] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    session: Session = Depends(getSession),
+):
+    rows = _get_sponsor_invoice_rows(session, sponsor_name, start_date, end_date, limit)
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "Sponsor Name",
+            "Total Points Billed",
+            "Purchase Count",
+            "Driver Count",
+            "Point Value",
+            "Invoice Amount (USD)",
+            "Latest Purchase At",
+        ]
+    )
+
+    for row in rows:
+        writer.writerow(
+            [
+                row["sponsor_name"],
+                row["total_points_billed"],
+                row["purchase_count"],
+                row["driver_count"],
+                row["point_value"],
+                row["invoice_amount_usd"],
+                row["latest_purchase_at"],
+            ]
+        )
+
+    buffer.seek(0)
+    filename = f"sponsor_invoice_report_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(buffer, media_type="text/csv", headers=headers)
+
+
 #Gets a drivers user points to redeem
 @app.get("/points/{driver_id}")
 def getDriverPoints(driver_id: int, sponsor_id:int ,session:Session=Depends(getSession)):
@@ -1542,7 +1825,7 @@ def getDriverPoints(driver_id: int, sponsor_id:int ,session:Session=Depends(getS
     
     
 #Adds or subtracts points while also creating a transaction report
-#Joseph-> Ive gotta fix this endpoint so that it is compatable with the new schema
+
 
 @app.patch("/points")
 def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
@@ -1643,9 +1926,14 @@ def createMarket(payload: MarketCreate, sponsor_email : Optional[str] = Query(No
     
     
 
-@app.get("/market/{market_id}")
-def getMarket(market_id : int, session: Session = Depends(getSession)):
-    stmt = select(Market).where(Market.Market_ID == market_id)
+@app.get("/market")
+def getMarket(market_id : Optional[int] = Query (None), session: Session = Depends(getSession)):
+    
+    stmt = select(Market)
+    if market_id is not None:
+        stmt = stmt.where(Market.Market_ID == market_id)
+        
+        
     market_item = session.exec(stmt).first()
 
     if not market_item:
@@ -2071,6 +2359,8 @@ def markAsRead(notification_id: int, session: Session = Depends(getSession)):
 
 @app.post("/products/{market_id}")
 def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depends(getSession)):
+    # TODO: Add content safety filtering if sponsor catalogs must be restricted to G/PG items only.
+    # TODO: If sponsors must search/select products through the backend, add search endpoints instead of legacy-id-only import.
     market = session.exec(select(Market).where(Market.Market_ID == market_id)).first()
     if not market:
         raise HTTPException(status_code=404, detail="Sponsor Market not found!")
@@ -2119,6 +2409,7 @@ def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depe
         Product_Price=price_in_points,
         Product_Qty=product_qty,
         Product_Image=image_url,
+        Product_Ebay_Prod_ID= ebayItemID,
         Last_Refreshed=datetime.now(timezone.utc),
     )
     session.add(product)
@@ -2160,7 +2451,8 @@ def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), se
  
 @app.patch("/products/purchase")
 def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
-     
+    # TODO: If "real-time" price/availability is a hard requirement, revalidate imported product data against the source API here.
+    # TODO: Add cancellation/update/refund rules if orders are meant to be reversible after checkout.
     stmt = select(Market).where(Market.Market_ID == payload.market_id)
     market = session.exec(stmt).first()
     
@@ -2296,6 +2588,50 @@ def getOrderHistory(driver_id:int, session: Session=Depends(getSession)):
 
 
 
+
+
+
+@app.patch("/products/refresh")
+def refreshProducts(session: Session = Depends(getSession)):
+    stmt = select(Product)
+    products = session.exec(stmt).all()
+    
+    products_removed = 0
+    products_refreshed = 0
+    
+    
+    for product in products:
+        status, payload = getEbayProduct(product.Product_Ebay_Prod_ID)
+        if status != 200:
+            raise HTTPException(status_code=502, detail="eBay lookup failed")
+        
+        availabilities = payload.get("estimatedAvailabilities", [])
+        qty = availabilities[0].get("estimatedAvailableQuantity", 0) if availabilities else 0
+        
+        if qty == 0:
+            session.delete(product)
+            products_removed += 1
+
+
+        
+        else:
+            product.Product_Qty = qty
+            product.Last_Refreshed = datetime.now(timezone.utc)
+
+            session.add(product)
+            products_refreshed += 1
+            
+    session.commit()
+            
+            
+    return {"message": "Inventory refreshed!",
+            "updated":products_refreshed,
+            "deleted":products_removed }
+
+    
+
+
+
 """
 Points are to be translated as follows:  
 
@@ -2340,7 +2676,3 @@ def convertToPoints(market_id: int, prod_price: Decimal, session: Session = Depe
 
     points = _convert_usd_to_points(prod_price, market.Point_Value)
     return {"market_id": market_id, "usd_price": str(prod_price), "points": points}
-
-
-
-
