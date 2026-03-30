@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            currentMarket = await window.API.request(`/market/${storedMarketId}`);
+            currentMarket = await window.API.request(`/market?market_id=${encodeURIComponent(storedMarketId)}`);
             const marketName = currentMarket?.Market_Name ?? currentMarket?.market_name ?? '';
             const marketDescription = currentMarket?.Market_Description ?? currentMarket?.market_description ?? '';
             marketNameEl.value = marketName;

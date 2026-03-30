@@ -21,6 +21,8 @@ from db import getSession
 
 from models import *
 
+APP_VERSION = os.getenv("APP_VERSION", "dev")
+app = FastAPI(version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,8 +35,6 @@ app.add_middleware(
 def health():
     return {"ok": True}
 
-APP_VERSION = os.getenv("APP_VERSION", "dev")
-app = FastAPI(version=APP_VERSION)
 
 # -------------------------
 # BACKEND TODO BACKLOG
