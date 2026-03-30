@@ -80,4 +80,4 @@ def getEbayProdcut(ebayProductID: str):
 
 
 
-#getEbayProdcut("110589096548")
+#print(getEbayProdcut("110589096548"))
