@@ -107,6 +107,7 @@ class Product(SQLModel, table=True):
     Product_Name: str
     Product_Description: str
     Product_Price: int
+    Product_Ebay_Prod_ID: str
     Product_Qty:int
     #We're going to use paths to pull images from storage instad of storing bits.
     Product_Image: str
@@ -279,5 +280,4 @@ class RedeemRequest(BaseModel):
     driver_id: int
     product_id: int
     quantity: int = 1
-
 
