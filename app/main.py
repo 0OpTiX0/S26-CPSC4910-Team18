@@ -218,8 +218,8 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         User_Hashed_Pss=encryptString(payload.pssw),
         User_Login_Attempts=0,
         User_Lockout_Time=None,
-        Verification_Code=None
-        Notifications_Enabled=True
+        Verification_Code=None,
+        Notifications_Enabled=True,
         Time_Zone=payload.timezone or "UTC"
     )
   
