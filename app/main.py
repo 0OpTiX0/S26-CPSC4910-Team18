@@ -2572,6 +2572,80 @@ def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depe
     }
 
 
+@app.delete("/products/{product_id}")
+def deleteProductFromMarket(
+    sponsor_email: str,
+    product_id: int,
+    session: Session = Depends(getSession)
+):
+    sponsor = _resolve_sponsor_from_email(session, sponsor_email)
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found for uploader email")
+
+    product = session.exec(
+        select(Product).where(Product.ProductID == product_id)
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    market = session.exec(
+        select(Market).where(Market.Market_ID == product.MarketID)
+    ).first()
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found for product")
+
+    product_name = product.Product_Name
+    market_id = market.Market_ID
+
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.ProdID == product.ProductID)
+    ).all()
+
+    affected_cart_ids = set()
+    for cart_item in cart_items:
+        if cart_item.CartID is not None:
+            affected_cart_ids.add(cart_item.CartID)
+        session.delete(cart_item)
+
+    for cart_id in affected_cart_ids:
+        cart = session.exec(
+            select(Cart).where(Cart.CartID == cart_id)
+        ).first()
+
+        if not cart:
+            continue
+
+        remaining_items = session.exec(
+            select(CartItem).where(CartItem.CartID == cart_id)
+        ).all()
+
+        cart.Cart_Total = sum(item.Prod_Price * item.Prod_Qty for item in remaining_items)
+        session.add(cart)
+
+    session.delete(product)
+    session.commit()
+
+    sponsor_users = session.exec(
+        select(Sponsor_User).where(Sponsor_User.Sponsor_ID == sponsor.Sponsor_ID)
+    ).all()
+
+    for sponsor_user in sponsor_users:
+        if sponsor_user.UserID is not None:
+            create_notification(
+                session,
+                sponsor_user.UserID,
+                f'Catalog item "{product_name}" was removed from market {market_id}.',
+                "Catalog"
+            )
+
+    return {
+        "message": "Product deleted successfully",
+        "product_id": product_id,
+        "product_name": product_name,
+        "market_id": market_id,
+        "removed_cart_item_count": len(cart_items)
+    }
+    
 
 #gets all products for a specific market
 @app.get("/products/{market_id}")
