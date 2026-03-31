@@ -133,13 +133,13 @@ def validate_password_complexity(password: str):
 """
 #Notification Helper Function
 """
-def create_notification(session: Session, user_id: int, message: str, notif_type: str):
+def create_notification(session: Session, user_id: int, message: str, notif_type: str, force: bool = False):
     user = session.exec(select(User).where(User.UserID == user_id)).first()
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not user.Notifications_Enabled:
+    if not user.Notifications_Enabled and not force:
         return None
 
     notification = Notification(
@@ -812,7 +812,23 @@ def dropDriver(
     
     session.delete(target)
     session.commit()
-    
+
+    if drop_reason:
+        notif_message = (
+            f"You were removed from sponsor {sponsor.Sponsor_Name}. "
+            f"Reason: {drop_reason}"
+        )
+    else:
+        notif_message = f"You were removed from sponsor {sponsor.Sponsor_Name}."
+
+    create_notification(
+        session,
+        user.UserID,
+        notif_message,
+        "Sponsorship",
+        force=True
+    )
+
     if drop_reason:
         return {"message":f"Driver {driver.Driver_User_ID} was dropped from the program. Reason: {drop_reason}"}
     else:
