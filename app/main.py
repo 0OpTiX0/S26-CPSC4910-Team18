@@ -2737,7 +2737,7 @@ def getAllProducts(
  
 @app.patch("/products/purchase")
 def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
-    # TODO: If "real-time" price/availability is a hard requirement, revalidate imported product data against the source API here.
+    # DONE: If "real-time" price/availability is a hard requirement, revalidate imported product data against the source API here.
     # TODO: Add cancellation/update/refund rules if orders are meant to be reversible after checkout.
     stmt = select(Market).where(Market.Market_ID == payload.market_id)
     market = session.exec(stmt).first()
@@ -2763,6 +2763,31 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found")
+
+    purchased_by = "driver"
+
+    if payload.sponsor_user_email:
+        sponsor_user_account = session.exec(
+            select(User).where(User.User_Email == payload.sponsor_user_email)
+        ).first()
+
+        if not sponsor_user_account:
+            raise HTTPException(status_code=404, detail="Sponsor user account not found")
+
+        sponsor_user_link = session.exec(
+            select(Sponsor_User).where(Sponsor_User.UserID == sponsor_user_account.UserID)
+        ).first()
+
+        if not sponsor_user_link:
+            raise HTTPException(status_code=403, detail="This user is not a sponsor user")
+
+        if sponsor_user_link.Sponsor_ID != sponsor.Sponsor_ID:
+            raise HTTPException(
+                status_code=403,
+                detail="Sponsor user is not authorized to purchase for this driver"
+            )
+
+        purchased_by = sponsor_user_account.User_Name
     
     
     stmt = select(Cart).where(Cart.DriverID == driver.Registered_Driver)
@@ -2857,7 +2882,11 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
         Sponsor_Name= sponsor.Sponsor_Name,
         Points_Change= str(0 - total_cost),
         Points_After_Change= customer.User_Points,
-        Reason_For_Change= "User Purchase - Cart Checkout",
+        Reason_For_Change=(
+            f"Purchase - Cart Checkout by sponsor user {purchased_by}"
+            if payload.sponsor_user_email
+            else "User Purchase - Cart Checkout"
+        ),
         Created_At= datetime.now(timezone.utc)
     )
     
@@ -2867,10 +2896,22 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     session.refresh(transaction_log)
     session.refresh(cart)
 
+    if payload.sponsor_user_email:
+        purchase_message = (
+            f"A sponsor user completed a purchase on your behalf: "
+            f"{total_items} item(s) for {total_cost} points. "
+            f"Remaining points: {customer.User_Points}"
+        )
+    else:
+        purchase_message = (
+            f"Purchase complete: {total_items} item(s) for {total_cost} points. "
+            f"Remaining points: {customer.User_Points}"
+        )
+
     create_notification(
         session,
         payload.driver_id,
-        f"Purchase complete: {total_items} item(s) for {total_cost} points. Remaining points: {customer.User_Points}",
+        purchase_message,
         "Purchase"
     )
 
