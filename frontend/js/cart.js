@@ -13,17 +13,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentMarketId = null;
     let activeCartId = null;
 
-    // --- 1. Robust Context Initialization ---
     async function initializeContext() {
         try {
             const sponsorships = await window.API.request(`/admin/get_sponsor_list?driver_id=${session.userId}`);
             
-            // Check if it's an array and has items
             if (Array.isArray(sponsorships) && sponsorships.length > 0) {
                 currentSponsorId = sponsorships[0].Sponsor_ID;
             } else {
                 console.warn("Could not find a sponsor via /admin/get_sponsor_list. Attempting fallback...");
-                // Fallback: If your app has a default sponsor (e.g., ID 1), use it so testing doesn't halt.
                 currentSponsorId = 1; 
             }
 
@@ -32,17 +29,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             return true;
         } catch (error) {
             console.error("Failed to load context:", error);
-            // Fallback for total failure
             currentSponsorId = 1;
             currentMarketId = 1;
             return true;
         }
     }
 
-    // --- 2. Load Cart ---
+
     async function loadCart() {
         try {
-            // Guard clause to prevent 422s!
             if (!currentSponsorId) {
                 console.error("CRITICAL: currentSponsorId is null. Cannot fetch points.");
                 showEmptyCart();

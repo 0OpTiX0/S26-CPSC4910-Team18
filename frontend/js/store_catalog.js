@@ -8,21 +8,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    // Dynamic state variables
     let currentSponsorId = null;
     let currentMarketId = null;
 
-    // --- 1. Robust Context Initialization ---
     async function initializeStoreContext() {
         try {
             const sponsorships = await window.API.request(`/admin/get_sponsor_list?driver_id=${session.userId}`);
             
-            // Check if it's an array and has items
             if (Array.isArray(sponsorships) && sponsorships.length > 0) {
                 currentSponsorId = sponsorships[0].Sponsor_ID;
             } else {
                 console.warn("Could not find a sponsor via /admin/get_sponsor_list. Attempting fallback...");
-                // Fallback: If your app has a default sponsor (e.g., ID 1), use it so testing doesn't halt.
                 currentSponsorId = 1; 
             }
 
@@ -32,16 +28,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             return true;
         } catch (error) {
             console.error("Failed to initialize store context:", error);
-            // Fallback for total failure
             currentSponsorId = 1;
             currentMarketId = 1;
             return true;
         }
     }
 
-    // --- 2. Load Stats ---
     async function loadHeaderStats() {
-        // Guard clause to prevent 422s!
         if (!currentSponsorId) {
             console.error("CRITICAL: currentSponsorId is null. Cannot fetch points.");
             updateCartUI(0);
@@ -49,7 +42,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            // Added cache buster to points so the balance is always fresh
             const cacheBuster = Date.now();
             const points = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
             pointsDisplay.textContent = points;
@@ -89,7 +81,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // --- 3. Load Catalog ---
     async function loadProducts() {
         if (!catalogContainer || !currentMarketId) return;
         
@@ -133,10 +124,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // --- 4. Add to Cart Logic ---
     window.addToCart = async (productId, productName) => {
         try {
-            // Step 1: Hit the POST endpoint directly. The backend will automatically find your active cart or create one!
             const activeCart = await window.API.request(`/cart/${session.userId}`, {
                 method: "POST"
             });
@@ -145,7 +134,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error("Could not create or locate a Cart ID.");
             }
 
-            // Step 2: Add the specific item to that guaranteed cart
             await window.API.request(`/cart/cart_item/${activeCart.CartID}?prod_id=${productId}&prod_qty=1`, {
                 method: "POST"
             });
@@ -160,7 +148,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    // --- Boot Sequence ---
     async function init() {
         const hasContext = await initializeStoreContext();
         if (hasContext) {
