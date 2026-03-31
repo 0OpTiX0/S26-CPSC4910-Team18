@@ -53,7 +53,7 @@ app = FastAPI(version=APP_VERSION)
 
 #
 # Notifications
-# TODO: Create a mandatory dropped-from-sponsor notification when a sponsor removes a driver.
+# DONE: Create a mandatory dropped-from-sponsor notification when a sponsor removes a driver.
 
 
 # TODO: Add persisted notification preferences for point change alerts and order summary alerts.
@@ -793,7 +793,7 @@ def dropDriver(
     drop_reason : Optional[str] = Query(None),
     session : Session = Depends(getSession)
 ):
-    # TODO: When a driver is dropped, create a mandatory notification for the affected driver.
+    # DONE: When a driver is dropped, create a mandatory notification for the affected driver.
     # TODO: Revisit whether this endpoint should also update membership status instead of deleting the link outright.
     stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == user_id)
     driver = session.exec(stmt).first()
