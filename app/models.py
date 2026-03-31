@@ -275,6 +275,7 @@ class Purchase(BaseModel):
     market_id: int
     product_id: int
     driver_id: int
+    sponsor_user_email: Optional[str] = None
     
     
 class PointToDollar(BaseModel):
