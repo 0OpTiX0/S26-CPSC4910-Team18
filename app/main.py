@@ -30,13 +30,53 @@ def health():
 APP_VERSION = os.getenv("APP_VERSION", "dev")
 app = FastAPI(version=APP_VERSION)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True, 
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# -------------------------
+# BACKEND TODO BACKLOG
+# -------------------------
+#
+# These TODOs are based on the unmet/partial base requirements from the
+# Good Driver Incentive Program feature breakdown. Keep this list updated
+# as items are completed so the backend status is visible in-code.
+#
+# Core system
+
+#
+
+
+#
+# Notifications
+# DONE: Create a mandatory dropped-from-sponsor notification when a sponsor removes a driver.
+
+
+# TODO: Add persisted notification preferences for point change alerts and order summary alerts.
+#
+# Catalog / purchases
+
+       
+
+        
+            
+        
+
+
+# TODO: Add purchase cancellation/update rules if the business wants reversible orders.
+# TODO: Add backend content filtering or moderation rules for G/PG-only catalog items.
+
+# DONE: Define what "real-time catalog updates" means and implement scheduled refresh or refresh-on-read behavior.
+#
+# Sponsor / admin management
+# TODO: Add sponsor-user disable/enable functionality.
+# TODO: Add admin-side disable/enable functionality for any user account.
+
+#
+
+# TODO: Define summary vs detailed reporting views in backend response models.
+# TODO: Finish CSV export coverage for any report types still missing.
+#
+# Deployment / quality
+
+# TODO: Add CI/CD workflow configuration to the repository.
+# TODO: Document and verify deployment targets, hosted database requirements, and environment config management.
 
 @app.get("/version")
 def getVersion():
@@ -85,8 +125,15 @@ def validate_password_complexity(password: str):
 """
 #Notification Helper Function
 """
-def create_notification(session: Session, user_id: int, message: str, notif_type: str):
-    
+def create_notification(session: Session, user_id: int, message: str, notif_type: str, force: bool = False):
+    user = session.exec(select(User).where(User.UserID == user_id)).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not user.Notifications_Enabled and not force:
+        return None
+
     notification = Notification(
         UserID=user_id,
         Message=message,
@@ -96,6 +143,7 @@ def create_notification(session: Session, user_id: int, message: str, notif_type
     session.add(notification)
     session.commit()
     session.refresh(notification)
+    return notification
 
 
 def _convert_usd_to_points(usd_price: Decimal, point_value: Decimal) -> int:
@@ -113,6 +161,7 @@ def _convert_usd_to_points(usd_price: Decimal, point_value: Decimal) -> int:
         points = 1
 
     return points
+
 
 # -------------------------
 # USER MANAGEMENT
@@ -162,7 +211,9 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         User_Hashed_Pss=encryptString(payload.pssw),
         User_Login_Attempts=0,
         User_Lockout_Time=None,
-        Verification_Code=None
+        Verification_Code=None,
+        Notifications_Enabled=True,
+        Time_Zone=payload.timezone or "UTC"
     )
   
     session.add(user)
@@ -660,7 +711,7 @@ def dropDriver(
     drop_reason : Optional[str] = Query(None),
     session : Session = Depends(getSession)
 ):
-    # TODO: When a driver is dropped, create a mandatory notification for the affected driver.
+    # DONE: When a driver is dropped, create a mandatory notification for the affected driver.
     # TODO: Revisit whether this endpoint should also update membership status instead of deleting the link outright.
     stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == user_id)
     driver = session.exec(stmt).first()
@@ -679,53 +730,88 @@ def dropDriver(
     
     session.delete(target)
     session.commit()
-    
+
+    if drop_reason:
+        notif_message = (
+            f"You were removed from sponsor {sponsor.Sponsor_Name}. "
+            f"Reason: {drop_reason}"
+        )
+    else:
+        notif_message = f"You were removed from sponsor {sponsor.Sponsor_Name}."
+
+    create_notification(
+        session,
+        user.UserID,
+        notif_message,
+        "Sponsorship",
+        force=True
+    )
+
     if drop_reason:
         return {"message":f"Driver {driver.Driver_User_ID} was dropped from the program. Reason: {drop_reason}"}
     else:
         return{"message": f"Driver {driver.Driver_User_ID} was dropped from the program."}
 
 
-# TODO: Fix suspension logic to make compatable with new schema (For Liam)
+#Updated suspension logic for new sponsorship schema
+@app.patch("/sponsors/suspend_driver")
+def suspendDriver(
+    sponsor_id: int,
+    driver_email: str,
+    reason: str,
+    duration_minutes: int,
+    session: Session = Depends(getSession)
+):
+    if duration_minutes <= 0:
+        raise HTTPException(status_code=400, detail="duration_minutes must be greater than 0")
 
+    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)).first()
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
 
-# @app.patch("/sponsors/suspend_driver")
-# def suspendDriver(
-#     sponsor_email: str,
-#     driver_email: str,
-#     reason: str,
-#     duration_minutes: int,
-#     session: Session = Depends(getSession)
-# ):
-#     sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == sponsor_email)).first()
-#
-#     if not sponsor:
-#         raise HTTPException(status_code=404, detail="Sponsor not found")
-#
-#     driver_user_id = session.exec(select(User.UserID).where(User.User_Email == driver_email)).first()
-#
-#     if not driver_user_id:
-#         raise HTTPException(status_code=404, detail="Driver not found")
-#
-#     driver = session.exec(
-#         select(Driver_User).where(Driver_User.Registered_Driver == driver_user_id, Driver_User.Sponsor_ID == sponsor.Sponsor_ID)).first()
-#
-#     if not driver:
-#         raise HTTPException(status_code=404, detail="Driver not linked to this sponsor")
-#
-#     driver.Is_Suspended = True
-#     driver.Suspension_Reason = reason
-#     driver.Suspension_Until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
-#
-#     session.add(driver)
-#     session.commit()
-#     session.refresh(driver)
-#
-#     return {
-#         "message": "Driver suspended successfully",
-#         "until": driver.Suspension_Until,
-#         "reason": driver.Suspension_Reason
-#     }
+    user = session.exec(select(User).where(User.User_Email == driver_email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Driver user account not found")
+
+    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == user.UserID)).first()
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    sponsorship = session.exec(
+        select(Sponsorship).where(
+            Sponsorship.Driver_User_ID == driver.Registered_Driver,
+            Sponsorship.Sponsor_ID == sponsor_id
+        )).first()
+    if not sponsorship:
+        raise HTTPException(status_code=404, detail="Driver is not enrolled with this sponsor")
+
+    driver.Is_Suspended = True
+    driver.Suspension_Reason = reason
+    driver.Suspension_Until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+
+    sponsorship.Membership_Status = "Suspended"
+
+    session.add(driver)
+    session.add(sponsorship)
+    session.commit()
+    session.refresh(driver)
+    session.refresh(sponsorship)
+
+    create_notification(
+        session,
+        user.UserID,
+        f"You have been suspended by {sponsor.Sponsor_Name}. Reason: {reason}. Suspension ends at {driver.Suspension_Until}.",
+        "Suspension"
+    )
+
+    return {
+        "message": "Driver suspended successfully",
+        "driver_id": driver.Registered_Driver,
+        "sponsor_id": sponsor.Sponsor_ID,
+        "membership_status": sponsorship.Membership_Status,
+        "until": driver.Suspension_Until,
+        "reason": driver.Suspension_Reason
+    }
 
 @app.patch("/sponsors/reinstate_driver")
 def reinstate_driver(driver_email: str, session: Session = Depends(getSession)):
@@ -1211,6 +1297,7 @@ def viewProfile(user_id: int, session: Session = Depends(getSession)):
         "role": user.User_Role,
         "loginAttempts": user.User_Login_Attempts,
         "lockoutTime": user.User_Lockout_Time,
+        "timezone": user.Time_Zone,
     }
 
 """
@@ -1233,7 +1320,6 @@ def updateProfile(
         user.User_Name = payload.name
 
     if payload.email:
-        # Prevent duplicate email
         existing = session.exec(
             select(User).where(User.User_Email == payload.email)
         ).first()
@@ -1249,6 +1335,9 @@ def updateProfile(
             raise HTTPException(status_code=409, detail="Phone already in use")
         user.User_Phone_Num = payload.phone
 
+    if payload.timezone:
+        user.Time_Zone = payload.timezone
+
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -1261,8 +1350,6 @@ def updateProfile(
     )
 
     return {"message": "Profile updated successfully"}
-
-
 
 
 @app.post("/account/{user_id}/request_password_change")
@@ -2338,7 +2425,27 @@ def markAsRead(notification_id: int, session: Session = Depends(getSession)):
 
     return {"message": "Notification marked as read"}
 
+@app.patch("/account/{user_id}/notifications")
+def updateNotificationPreference(
+    user_id: int,
+    payload: NotificationPreferenceUpdate,
+    session: Session = Depends(getSession)
+):
+    user = session.exec(select(User).where(User.UserID == user_id)).first()
 
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.Notifications_Enabled = payload.enabled
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return {
+        "message": "Notification preference updated successfully",
+        "userId": user.UserID,
+        "notifications_enabled": user.Notifications_Enabled
+    }
 
     
  
@@ -2417,6 +2524,80 @@ def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depe
     }
 
 
+@app.delete("/products/{product_id}")
+def deleteProductFromMarket(
+    sponsor_email: str,
+    product_id: int,
+    session: Session = Depends(getSession)
+):
+    sponsor = _resolve_sponsor_from_email(session, sponsor_email)
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found for uploader email")
+
+    product = session.exec(
+        select(Product).where(Product.ProductID == product_id)
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    market = session.exec(
+        select(Market).where(Market.Market_ID == product.MarketID)
+    ).first()
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found for product")
+
+    product_name = product.Product_Name
+    market_id = market.Market_ID
+
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.ProdID == product.ProductID)
+    ).all()
+
+    affected_cart_ids = set()
+    for cart_item in cart_items:
+        if cart_item.CartID is not None:
+            affected_cart_ids.add(cart_item.CartID)
+        session.delete(cart_item)
+
+    for cart_id in affected_cart_ids:
+        cart = session.exec(
+            select(Cart).where(Cart.CartID == cart_id)
+        ).first()
+
+        if not cart:
+            continue
+
+        remaining_items = session.exec(
+            select(CartItem).where(CartItem.CartID == cart_id)
+        ).all()
+
+        cart.Cart_Total = sum(item.Prod_Price * item.Prod_Qty for item in remaining_items)
+        session.add(cart)
+
+    session.delete(product)
+    session.commit()
+
+    sponsor_users = session.exec(
+        select(Sponsor_User).where(Sponsor_User.Sponsor_ID == sponsor.Sponsor_ID)
+    ).all()
+
+    for sponsor_user in sponsor_users:
+        if sponsor_user.UserID is not None:
+            create_notification(
+                session,
+                sponsor_user.UserID,
+                f'Catalog item "{product_name}" was removed from market {market_id}.',
+                "Catalog"
+            )
+
+    return {
+        "message": "Product deleted successfully",
+        "product_id": product_id,
+        "product_name": product_name,
+        "market_id": market_id,
+        "removed_cart_item_count": len(cart_items)
+    }
+    
 
 #gets all products for a specific market
 @app.get("/products/{market_id}")
@@ -2442,7 +2623,7 @@ def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), se
  
 @app.patch("/products/purchase")
 def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
-    # TODO: If "real-time" price/availability is a hard requirement, revalidate imported product data against the source API here.
+    # DONE: If "real-time" price/availability is a hard requirement, revalidate imported product data against the source API here.
     # TODO: Add cancellation/update/refund rules if orders are meant to be reversible after checkout.
     stmt = select(Market).where(Market.Market_ID == payload.market_id)
     market = session.exec(stmt).first()
@@ -2582,6 +2763,7 @@ def getOrderHistory(driver_id:int, session: Session=Depends(getSession)):
 
 
 
+@app.patch("/products/refresh")
 @app.patch("/products/refresh")
 def refreshProducts(session: Session = Depends(getSession)):
     stmt = select(Product)
