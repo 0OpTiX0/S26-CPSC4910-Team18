@@ -171,101 +171,6 @@ def _convert_usd_to_points(usd_price: Decimal, point_value: Decimal) -> int:
     return points
 
 
-
-CATALOG_REFRESH_TTL_MINUTES = 10
-
-def _refresh_single_product_from_ebay(session: Session, product: Product) -> Optional[Product]:
-    status, payload = getEbayProduct(product.Product_Ebay_Prod_ID)
-    if status != 200:
-        raise HTTPException(status_code=502, detail=f"eBay lookup failed for product {product.ProductID}")
-
-    raw_title = (payload.get("title") or "").strip()
-    raw_description = payload.get("description") or ""
-    raw_image_url = (payload.get("image", {}).get("imageUrl") or "").strip()
-    raw_price = payload.get("price", {}).get("value")
-
-    availabilities = payload.get("estimatedAvailabilities") or []
-    raw_qty = availabilities[0].get("estimatedAvailableQuantity") or 0 if availabilities else 0
-
-    description_no_style = re.sub(
-        r"<(script|style)[^>]*>.*?</\\1>",
-        " ",
-        raw_description,
-        flags=re.IGNORECASE | re.DOTALL
-    )
-    description_no_tags = re.sub(r"<[^>]+>", " ", description_no_style)
-    description_text = re.sub(r"\\s+", " ", unescape(description_no_tags)).strip()
-
-    title = raw_title[:45] if raw_title else "eBay Item"
-    description = description_text[:100]
-    image_url = raw_image_url[:255]
-
-    market = session.exec(
-        select(Market).where(Market.Market_ID == product.MarketID)
-    ).first()
-
-    if not market:
-        raise HTTPException(status_code=404, detail="Market not found for product")
-
-    if market.Point_Value is None or market.Point_Value <= 0:
-        raise HTTPException(status_code=400, detail="Invalid point value for this market")
-
-    try:
-        usd_price = Decimal(str(raw_price)) if raw_price is not None else Decimal("0")
-    except (InvalidOperation, TypeError, ValueError):
-        usd_price = Decimal("0")
-
-    price_in_points = _convert_usd_to_points(usd_price, market.Point_Value)
-
-    try:
-        product_qty = int(raw_qty)
-    except (TypeError, ValueError):
-        product_qty = 0
-
-    if product_qty <= 0:
-        session.delete(product)
-        return None
-
-    product.Product_Name = title
-    product.Product_Description = description
-    product.Product_Image = image_url
-    product.Product_Price = price_in_points
-    product.Product_Qty = product_qty
-    product.Last_Refreshed = datetime.now(timezone.utc)
-
-    session.add(product)
-    return product
-
-
-def _product_is_stale(product: Product) -> bool:
-    if product.Last_Refreshed is None:
-        return True
-
-    last_refreshed = product.Last_Refreshed
-    if last_refreshed.tzinfo is None:
-        last_refreshed = last_refreshed.replace(tzinfo=timezone.utc)
-
-    age = datetime.now(timezone.utc) - last_refreshed
-    return age > timedelta(minutes=CATALOG_REFRESH_TTL_MINUTES)
-
-
-def _refresh_market_products_if_stale(session: Session, products: list[Product]) -> tuple[int, int]:
-    refreshed = 0
-    removed = 0
-
-    for product in products:
-        if not _product_is_stale(product):
-            continue
-
-        updated = _refresh_single_product_from_ebay(session, product)
-        if updated is None:
-            removed += 1
-        else:
-            refreshed += 1
-
-    session.commit()
-    return refreshed, removed
-
 # -------------------------
 # USER MANAGEMENT
 # -------------------------
@@ -2686,53 +2591,24 @@ def deleteProductFromMarket(
 
 #gets all products for a specific market
 @app.get("/products/{market_id}")
-def getAllProducts(
-    market_id: int,
-    product_name: Optional[str] = Query(None),
-    refresh_now: bool = Query(False),
-    session: Session = Depends(getSession)
-):
-    market = session.exec(
-        select(Market).where(Market.Market_ID == market_id)
-    ).first()
-
+def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), session: Session = Depends(getSession)):
+    
+    stmt = select(Market).where(Market.Market_ID == market_id)
+    
+    market = session.exec(stmt).all()
+    
     if not market:
         raise HTTPException(status_code=404, detail="Sponsor Market not found!")
-
+    
     stmt = select(Product).where(Product.MarketID == market_id)
 
     if product_name is not None:
         stmt = stmt.where(func.lower(Product.Product_Name).like(f"%{product_name.lower()}%"))
-
+    
+    
     products = session.exec(stmt).all()
-
-    refreshed = 0
-    removed = 0
-
-    if refresh_now:
-        for product in products:
-            updated = _refresh_single_product_from_ebay(session, product)
-            if updated is None:
-                removed += 1
-            else:
-                refreshed += 1
-        session.commit()
-    else:
-        refreshed, removed = _refresh_market_products_if_stale(session, products)
-
-    stmt = select(Product).where(Product.MarketID == market_id)
-    if product_name is not None:
-        stmt = stmt.where(func.lower(Product.Product_Name).like(f"%{product_name.lower()}%"))
-
-    updated_products = session.exec(stmt).all()
-
-    return {
-        "market_id": market_id,
-        "refresh_mode": "forced" if refresh_now else "stale_only",
-        "refreshed_count": refreshed,
-        "removed_count": removed,
-        "products": updated_products
-    }
+    
+    return products
  
  
 @app.patch("/products/purchase")
@@ -2763,31 +2639,6 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found")
-
-    purchased_by = "driver"
-
-    if payload.sponsor_user_email:
-        sponsor_user_account = session.exec(
-            select(User).where(User.User_Email == payload.sponsor_user_email)
-        ).first()
-
-        if not sponsor_user_account:
-            raise HTTPException(status_code=404, detail="Sponsor user account not found")
-
-        sponsor_user_link = session.exec(
-            select(Sponsor_User).where(Sponsor_User.UserID == sponsor_user_account.UserID)
-        ).first()
-
-        if not sponsor_user_link:
-            raise HTTPException(status_code=403, detail="This user is not a sponsor user")
-
-        if sponsor_user_link.Sponsor_ID != sponsor.Sponsor_ID:
-            raise HTTPException(
-                status_code=403,
-                detail="Sponsor user is not authorized to purchase for this driver"
-            )
-
-        purchased_by = sponsor_user_account.User_Name
     
     
     stmt = select(Cart).where(Cart.DriverID == driver.Registered_Driver)
@@ -2820,25 +2671,6 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
             Product.MarketID == payload.market_id,
         )
     ).all()
-    products_by_id = {product.ProductID: product for product in products if product.ProductID is not None}
-
-    for product in products:
-        updated = _refresh_single_product_from_ebay(session, product)
-        if updated is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{product.Product_Name} is no longer available"
-            )
-            
-    session.commit()
-    
-    products = session.exec(
-        select(Product).where(
-            Product.ProductID.in_(list(unique_product_ids)),
-            Product.MarketID == payload.market_id,
-        )
-    ).all()
-
     products_by_id = {product.ProductID: product for product in products if product.ProductID is not None}
 
     if len(products_by_id) != len(unique_product_ids):
@@ -2882,11 +2714,7 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
         Sponsor_Name= sponsor.Sponsor_Name,
         Points_Change= str(0 - total_cost),
         Points_After_Change= customer.User_Points,
-        Reason_For_Change=(
-            f"Purchase - Cart Checkout by sponsor user {purchased_by}"
-            if payload.sponsor_user_email
-            else "User Purchase - Cart Checkout"
-        ),
+        Reason_For_Change= "User Purchase - Cart Checkout",
         Created_At= datetime.now(timezone.utc)
     )
     
@@ -2896,22 +2724,10 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     session.refresh(transaction_log)
     session.refresh(cart)
 
-    if payload.sponsor_user_email:
-        purchase_message = (
-            f"A sponsor user completed a purchase on your behalf: "
-            f"{total_items} item(s) for {total_cost} points. "
-            f"Remaining points: {customer.User_Points}"
-        )
-    else:
-        purchase_message = (
-            f"Purchase complete: {total_items} item(s) for {total_cost} points. "
-            f"Remaining points: {customer.User_Points}"
-        )
-
     create_notification(
         session,
         payload.driver_id,
-        purchase_message,
+        f"Purchase complete: {total_items} item(s) for {total_cost} points. Remaining points: {customer.User_Points}",
         "Purchase"
     )
 
@@ -2940,25 +2756,40 @@ def getOrderHistory(driver_id:int, session: Session=Depends(getSession)):
 @app.patch("/products/refresh")
 @app.patch("/products/refresh")
 def refreshProducts(session: Session = Depends(getSession)):
-    products = session.exec(select(Product)).all()
-
+    stmt = select(Product)
+    products = session.exec(stmt).all()
+    
     products_removed = 0
     products_refreshed = 0
-
+    
+    
     for product in products:
-        updated = _refresh_single_product_from_ebay(session, product)
-        if updated is None:
+        status, payload = getEbayProduct(product.Product_Ebay_Prod_ID)
+        if status != 200:
+            raise HTTPException(status_code=502, detail="eBay lookup failed")
+        
+        availabilities = payload.get("estimatedAvailabilities", [])
+        qty = availabilities[0].get("estimatedAvailableQuantity", 0) if availabilities else 0
+        
+        if qty == 0:
+            session.delete(product)
             products_removed += 1
+
+
+        
         else:
+            product.Product_Qty = qty
+            product.Last_Refreshed = datetime.now(timezone.utc)
+
+            session.add(product)
             products_refreshed += 1
-
+            
     session.commit()
-
-    return {
-        "message": "Inventory refreshed!",
-        "updated": products_refreshed,
-        "deleted": products_removed
-    }
+            
+            
+    return {"message": "Inventory refreshed!",
+            "updated":products_refreshed,
+            "deleted":products_removed }
 
     
 
