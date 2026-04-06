@@ -23,14 +23,6 @@ from models import *
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 @app.get("/health")
 def health():
     return {"ok": True}
@@ -38,53 +30,13 @@ def health():
 APP_VERSION = os.getenv("APP_VERSION", "dev")
 app = FastAPI(version=APP_VERSION)
 
-# -------------------------
-# BACKEND TODO BACKLOG
-# -------------------------
-#
-# These TODOs are based on the unmet/partial base requirements from the
-# Good Driver Incentive Program feature breakdown. Keep this list updated
-# as items are completed so the backend status is visible in-code.
-#
-# Core system
-
-#
-
-
-#
-# Notifications
-# TODO: Create a mandatory dropped-from-sponsor notification when a sponsor removes a driver.
-
-
-# TODO: Add persisted notification preferences for point change alerts and order summary alerts.
-#
-# Catalog / purchases
-
-       
-
-        
-            
-        
-
-
-# TODO: Add purchase cancellation/update rules if the business wants reversible orders.
-# TODO: Add backend content filtering or moderation rules for G/PG-only catalog items.
-
-# TODO: Define what "real-time catalog updates" means and implement scheduled refresh or refresh-on-read behavior.
-#
-# Sponsor / admin management
-# TODO: Add sponsor-user disable/enable functionality.
-# TODO: Add admin-side disable/enable functionality for any user account.
-
-#
-
-# TODO: Define summary vs detailed reporting views in backend response models.
-# TODO: Finish CSV export coverage for any report types still missing.
-#
-# Deployment / quality
-
-# TODO: Add CI/CD workflow configuration to the repository.
-# TODO: Document and verify deployment targets, hosted database requirements, and environment config management.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True, 
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/version")
 def getVersion():
@@ -1980,26 +1932,40 @@ def deleteMarket(market_id : int, session: Session = Depends(getSession)):
 
 
 @app.get("/cart/{driver_id}")
-def getCart(driver_id:int, 
-            status: Optional[str] = Query(None),
-            session:Session = Depends(getSession)):
-    stmt = select(Driver_User).where(Driver_User.Registered_Driver == driver_id)
-    driver = session.exec(stmt).first()
-    
+def getCart(driver_id:int, status: Optional[str] = Query(None), session:Session = Depends(getSession)):
+    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == driver_id)).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Driver does not exist")
     
     stmt = select(Cart).where(Cart.DriverID == driver_id)
-    
     if status is not None:
         stmt = stmt.where(Cart.Status == status)
+        
+    stmt = stmt.order_by(desc(Cart.CartID))
+    cart = session.exec(stmt).first()
     
-    cart = session.exec(stmt).all()
-
     if not cart:
-        raise HTTPException(status_code=404, detail="Cart does not exist")
+        return []
     
-    return cart
+    items_stmt = (
+        select(CartItem, Product)
+        .join(Product, CartItem.ProdID == Product.ProductID)
+        .where(CartItem.CartID == cart.CartID)
+    )
+    results = session.exec(items_stmt).all()
+    
+    formatted_cart = []
+    for item, product in results:
+        formatted_cart.append({
+            "CartID": cart.CartID, 
+            "Cart_Item_ID": item.Cart_Item_ID,
+            "product_name": product.Product_Name,
+            "price": item.Prod_Price,
+            "qty": item.Prod_Qty,
+            "image": product.Product_Image
+        })
+    
+    return formatted_cart
 
 @app.patch("/cart/{cart_id}")
 def CalculateCartTotal(cart_id:int,session:Session = Depends(getSession)):
@@ -2038,6 +2004,12 @@ def createCart(user_id: int, session: Session = Depends(getSession)):
 
     if not driver:
         raise HTTPException(status_code=404, detail="Driver does not exist")
+    
+    stmt = select(Cart).where(Cart.DriverID == driver.Registered_Driver, Cart.Status == "Pending").order_by(desc(Cart.CartID))
+    existing_cart = session.exec(stmt).first()
+    
+    if existing_cart:
+        return existing_cart
     
     cart = Cart(
         DriverID=driver.Registered_Driver,
@@ -2098,21 +2070,19 @@ def deleteCart(driver_id : int, cart_id : int, session: Session = Depends(getSes
     return({"message":"Cart Deleted Successfully"})
 
 @app.delete("/cart/{driver_id}/{cart_item_id}")
-def deleteCartItem(cart_id : int, cart_item_id : int, session: Session = Depends(getSession)):
-    cart_item = session.exec(select(CartItem).where(CartItem.CartID == cart_id)).first()
-
-    if not cart_item:
-        raise HTTPException(status_code=404, detail="CartItem Not Found /W CartID!")
-    
+def deleteCartItem(driver_id: int, cart_item_id: int, session: Session = Depends(getSession)):
     cart_item = session.exec(select(CartItem).where(CartItem.Cart_Item_ID == cart_item_id)).first()
-
     if not cart_item:
-        raise HTTPException(status_code=404, detail="CartItem Not Found /W CartItemID!")
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    cart = session.exec(select(Cart).where(Cart.CartID == cart_item.CartID)).first()
+    if not cart or cart.DriverID != driver_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this item")
     
     session.delete(cart_item)
     session.commit()
 
-    return({"message":"Cart Item Deleted Successfully"})
+    return {"message": "Cart item deleted successfully"}
 
 @app.patch("/cart/{driver_id}")
 def updateCart(driver_id : int, payload : UpdateCart, session: Session = Depends(getSession)):
