@@ -60,7 +60,7 @@ app = FastAPI(version=APP_VERSION)
 
 
 # TODO: Add purchase cancellation/update rules if the business wants reversible orders.
-# TODO: Add backend content filtering or moderation rules for G/PG-only catalog items.
+
 
 # DONE: Define what "real-time catalog updates" means and implement scheduled refresh or refresh-on-read behavior.
 #
@@ -68,15 +68,9 @@ app = FastAPI(version=APP_VERSION)
 # DONE: Add sponsor-user disable/enable functionality.
 # DONE: Add admin-side disable/enable functionality for any user account.
 
-#
 
-# TODO: Define summary vs detailed reporting views in backend response models.
-# TODO: Finish CSV export coverage for any report types still missing.
-#
-# Deployment / quality
 
-# TODO: Add CI/CD workflow configuration to the repository.
-# TODO: Document and verify deployment targets, hosted database requirements, and environment config management.
+
 
 @app.get("/version")
 def getVersion():
