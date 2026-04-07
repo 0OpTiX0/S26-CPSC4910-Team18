@@ -205,7 +205,9 @@ class SponsorCreate(BaseModel):
     email: str
     phone: str
     
-
+class AccountStatusUpdate(BaseModel):
+    disabled: bool
+    reason: Optional[str] = None
 
 class ProfileUpdateRequest(BaseModel):
     name: Optional[str] = None
