@@ -20,6 +20,8 @@ class User(SQLModel, table=True):
     Verification_Code : Optional[str] = Field(default = None)
     Notifications_Enabled: bool = Field(default=True)
     Time_Zone: str = Field(default="UTC")
+    Is_Disabled: bool = Field(default=False)
+    Disabled_Reason: Optional[str] = None
 
 class Market(SQLModel, table=True):
     __tablename__ = "Market"
