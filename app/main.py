@@ -802,7 +802,7 @@ def dropDriver(
     if not driver:
         raise HTTPException(status_code=404, detail="Driver Not Found!")
     
-    stmt = select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)
+    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
     sponsor = session.exec(stmt).first()
     
     if not sponsor:
@@ -821,6 +821,9 @@ def dropDriver(
         )
     else:
         notif_message = f"You were removed from sponsor {sponsor.Sponsor_Name}."
+
+    stmt = select(User).where(User.UserID == user_id)
+    user = session.exec(stmt).first()
 
     create_notification(
         session,
