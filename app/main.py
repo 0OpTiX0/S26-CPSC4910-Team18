@@ -65,8 +65,8 @@ app = FastAPI(version=APP_VERSION)
 # DONE: Define what "real-time catalog updates" means and implement scheduled refresh or refresh-on-read behavior.
 #
 # Sponsor / admin management
-# TODO: Add sponsor-user disable/enable functionality.
-# TODO: Add admin-side disable/enable functionality for any user account.
+# DONE: Add sponsor-user disable/enable functionality.
+# DONE: Add admin-side disable/enable functionality for any user account.
 
 #
 
@@ -145,6 +145,84 @@ def create_notification(session: Session, user_id: int, message: str, notif_type
     session.refresh(notification)
     return notification
 
+"""
+#Past Order Helper Function
+"""
+def get_completed_order(
+    session: Session,
+    cart_id: int,
+    driver_id: int
+) -> tuple[Cart, list[CartItem], Driver_User, Sponsorship, Sponsor]:
+    cart = session.exec(
+        select(Cart).where(Cart.CartID == cart_id, Cart.DriverID == driver_id)
+    ).first()
+    if not cart:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+
+    if cart.Status != "Purchase Complete":
+        raise HTTPException(status_code=400, detail="Only completed purchase orders can be changed")
+
+    driver = session.exec(
+        select(Driver_User).where(Driver_User.Registered_Driver == driver_id)
+    ).first()
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.CartID == cart.CartID)
+    ).all()
+    if not cart_items:
+        raise HTTPException(status_code=404, detail="Purchase order has no items")
+
+    market = session.exec(
+        select(Market).where(Market.Market_ID == (
+            session.exec(
+                select(Product.MarketID).where(Product.ProductID == cart_items[0].ProdID)
+            ).first()
+        ))
+    ).first()
+    if not market or market.Market_Sponsor is None:
+        raise HTTPException(status_code=404, detail="Associated market not found")
+
+    sponsorship = session.exec(
+        select(Sponsorship).where(
+            Sponsorship.Driver_User_ID == driver_id,
+            Sponsorship.Sponsor_ID == market.Market_Sponsor
+        )
+    ).first()
+    if not sponsorship:
+        raise HTTPException(status_code=404, detail="Sponsorship not found for this purchase")
+
+    sponsor = session.exec(
+        select(Sponsor).where(Sponsor.Sponsor_ID == sponsorship.Sponsor_ID)
+    ).first()
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+
+    return cart, cart_items, driver, sponsorship, sponsor
+
+ORDER_CHANGE_WINDOW_DAYS = 3
+
+def ensure_order_is_recent(cart: Cart):
+    if cart.Checked_Out_At is None:
+        raise HTTPException(
+            status_code=400,
+            detail="This order has no checkout timestamp and cannot be changed"
+        )
+
+    checked_out_at = cart.Checked_Out_At
+    if checked_out_at.tzinfo is None:
+        checked_out_at = checked_out_at.replace(tzinfo=timezone.utc)
+
+    deadline = checked_out_at + timedelta(days=ORDER_CHANGE_WINDOW_DAYS)
+    now = datetime.now(timezone.utc)
+
+    if now > deadline:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Orders can only be changed or cancelled within {ORDER_CHANGE_WINDOW_DAYS} days of purchase"
+        )
+    
 
 def _convert_usd_to_points(usd_price: Decimal, point_value: Decimal) -> int:
     """Convert USD cost to whole points using the market conversion rate."""
@@ -2842,7 +2920,6 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
         product = products_by_id[cart_item.ProdID]
         product.Product_Qty -= cart_item.Prod_Qty
         session.add(product)
-        session.delete(cart_item)
 
     customer.User_Points -= total_cost
     cart.Status = "Purchase Complete"
@@ -2875,6 +2952,143 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     )
 
     return {"message": "Purchase completed successfully"}
+    
+
+@app.patch("/products/purchase/{cart_id}/cancel")
+def cancelPurchaseOrder(
+    cart_id: int,
+    driver_id: int,
+    session: Session = Depends(getSession)
+):
+    cart, cart_items, driver, sponsorship, sponsor = get_completed_order(session, cart_id, driver_id)
+
+    ensure_order_is_recent(cart)
+
+    refunded_points = 0
+
+    for cart_item in cart_items:
+        if cart_item.ProdID is None:
+            raise HTTPException(status_code=400, detail="Order contains an invalid item")
+
+        product = session.exec(
+            select(Product).where(Product.ProductID == cart_item.ProdID)
+        ).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product from order no longer exists")
+
+        ensure_order_is_recent(cart
+
+        product.Product_Qty += cart_item.Prod_Qty
+        session.add(product)
+
+        refunded_points += cart_item.Prod_Price * cart_item.Prod_Qty
+
+    sponsorship.User_Points += refunded_points
+    cart.Status = "Cancelled"
+    cart.Cart_Total = 0
+    session.add(sponsorship)
+    session.add(cart)
+
+    refund_log = Point_Transaction(
+        Driver_User_ID=driver.Registered_Driver,
+        Driver_Name=driver.Driver_Name,
+        Sponsor_Name=sponsor.Sponsor_Name,
+        Points_Change=str(refunded_points),
+        Points_After_Change=sponsorship.User_Points,
+        Reason_For_Change=f"Purchase Cancelled - Cart {cart.CartID}",
+        Created_At=datetime.now(timezone.utc)
+    )
+    session.add(refund_log)
+
+    session.commit()
+    session.refresh(cart)
+    session.refresh(sponsorship)
+
+    create_notification(
+        session,
+        driver.Registered_Driver,
+        f"Your purchase order #{cart.CartID} was cancelled. {refunded_points} points were refunded.",
+        "Purchase",
+        force=True
+    )
+
+    return {
+        "message": "Purchase order cancelled successfully",
+        "cart_id": cart.CartID,
+        "refunded_points": refunded_points,
+        "remaining_points": sponsorship.User_Points,
+        "status": cart.Status
+    }
+
+@app.patch("/products/purchase/{cart_id}/reopen")
+def reopenPurchaseOrder(
+    cart_id: int,
+    driver_id: int,
+    session: Session = Depends(getSession)
+):
+    cart, cart_items, driver, sponsorship, sponsor = get_completed_order(session, cart_id, driver_id)
+
+    ensure_order_is_recent(cart)
+
+    refunded_points = 0
+    new_cart_total = 0
+
+    for cart_item in cart_items:
+        if cart_item.ProdID is None:
+            raise HTTPException(status_code=400, detail="Order contains an invalid item")
+
+        product = session.exec(
+            select(Product).where(Product.ProductID == cart_item.ProdID)
+        ).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product from order no longer exists")
+
+        product.Product_Qty += cart_item.Prod_Qty
+        session.add(product)
+
+        line_total = cart_item.Prod_Price * cart_item.Prod_Qty
+        refunded_points += line_total
+        new_cart_total += line_total
+
+    sponsorship.User_Points += refunded_points
+    cart.Status = "Pending"
+    cart.Cart_Total = new_cart_total
+    cart.Checked_Out_At = datetime.now(timezone.utc)
+
+    session.add(sponsorship)
+    session.add(cart)
+
+    reopen_log = Point_Transaction(
+        Driver_User_ID=driver.Registered_Driver,
+        Driver_Name=driver.Driver_Name,
+        Sponsor_Name=sponsor.Sponsor_Name,
+        Points_Change=str(refunded_points),
+        Points_After_Change=sponsorship.User_Points,
+        Reason_For_Change=f"Purchase Reopened - Cart {cart.CartID}",
+        Created_At=datetime.now(timezone.utc)
+    )
+    session.add(reopen_log)
+
+    session.commit()
+    session.refresh(cart)
+    session.refresh(sponsorship)
+
+    create_notification(
+        session,
+        driver.Registered_Driver,
+        f"Your purchase order #{cart.CartID} was reopened and moved back to a pending cart for editing.",
+        "Purchase",
+        force=True
+    )
+
+    return {
+        "message": "Purchase order reopened successfully",
+        "cart_id": cart.CartID,
+        "refunded_points": refunded_points,
+        "cart_total": cart.Cart_Total,
+        "remaining_points": sponsorship.User_Points,
+        "status": cart.Status
+    }
 
 @app.get("/products/purchase/history")
 def getOrderHistory(driver_id:int, session: Session=Depends(getSession)):
