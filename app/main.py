@@ -1687,7 +1687,7 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
     
     return statusReport
 
-# TODO: This is a note to ask if this covers the transaction history that can be searched through by sponsors.
+# TODO: This is a note to ask if this covers the transaction history that can be searched through by sponsors. *COMPLETED*
 @app.get("/report/transaction/{driver_id}/date_range")
 def getTransactionHistoryByDate(start_date : datetime, end_date : datetime, driver_id : int, session: Session = Depends(getSession)):
     if start_date > end_date:
