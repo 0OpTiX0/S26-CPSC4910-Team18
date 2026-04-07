@@ -213,7 +213,9 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         User_Lockout_Time=None,
         Verification_Code=None,
         Notifications_Enabled=True,
-        Time_Zone=payload.timezone or "UTC"
+        Time_Zone=payload.timezone or "UTC",
+        Is_Disabled=False,
+        Disabled_Reason=None
     )
   
     session.add(user)
@@ -339,6 +341,15 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
     user = session.exec(select(User).where(User.User_Email == payload.email)).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if user.Is_Disabled:
+    raise HTTPException(
+        status_code=403,
+        detail={
+            "message": "Account disabled",
+            "reason": user.Disabled_Reason
+        }
+    )
 
     now = datetime.now(timezone.utc)
 
@@ -843,6 +854,73 @@ def reinstate_driver(driver_email: str, session: Session = Depends(getSession)):
 
     return {"message":"Driver Reinstated"}
 
+@app.patch("/sponsors/driver_account_status")
+def updateDriverAccountStatusSponsor(
+    sponsor_id: int,
+    driver_id: int,
+    payload: AccountStatusUpdate,
+    session: Session = Depends(getSession)
+):
+    sponsorship = session.exec(
+        select(Sponsorship).where(
+            Sponsorship.Driver_User_ID == driver_id,
+            Sponsorship.Sponsor_ID == sponsor_id
+        )
+    ).first()
+
+    if not sponsorship:
+        raise HTTPException(
+            status_code=404,
+            detail="Driver is not linked to this sponsor"
+        )
+
+    user = session.exec(
+        select(User).where(User.UserID == driver_id)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Driver user not found")
+
+    if (user.User_Role or "").lower() != "driver":
+        raise HTTPException(
+            status_code=400,
+            detail="Sponsors may only disable or enable driver accounts"
+        )
+
+    user.Is_Disabled = payload.disabled
+    user.Disabled_Reason = payload.reason if payload.disabled else None
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    if payload.disabled:
+        create_notification(
+            session,
+            user.UserID,
+            f"Your account was disabled by a sponsor. Reason: {payload.reason or 'No reason provided.'}",
+            "Account",
+            force=True
+        )
+        return {
+            "message": "Driver account disabled successfully",
+            "userId": user.UserID,
+            "disabled": user.Is_Disabled
+        }
+    else:
+        create_notification(
+            session,
+            user.UserID,
+            "Your account was re-enabled by a sponsor.",
+            "Account",
+            force=True
+        )
+        return {
+            "message": "Driver account enabled successfully",
+            "userId": user.UserID,
+            "disabled": user.Is_Disabled
+        }
+
 @app.get("/sponsors/{sponsor_email}/applications/pending", response_model=list[Driver_Application])
 def getPendingApplications(
     sponsor_email: str,
@@ -879,6 +957,61 @@ def getSponsorships(
     return sponsorships
 
 
+@app.patch("/admin/account_status/{user_id}")
+def updateAnyAccountStatusAdmin(
+    user_id: int,
+    payload: AccountStatusUpdate,
+    session: Session = Depends(getSession)
+):
+    user = session.exec(
+        select(User).where(User.UserID == user_id)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    role = (user.User_Role or "").lower()
+    if role not in {"driver", "sponsor"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Admins may only disable or enable sponsor or driver accounts"
+        )
+
+    user.Is_Disabled = payload.disabled
+    user.Disabled_Reason = payload.reason if payload.disabled else None
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    if payload.disabled:
+        create_notification(
+            session,
+            user.UserID,
+            f"Your account was disabled by an admin. Reason: {payload.reason or 'No reason provided.'}",
+            "Account",
+            force=True
+        )
+        return {
+            "message": f"{role.capitalize()} account disabled successfully",
+            "userId": user.UserID,
+            "role": user.User_Role,
+            "disabled": user.Is_Disabled
+        }
+    else:
+        create_notification(
+            session,
+            user.UserID,
+            "Your account was re-enabled by an admin.",
+            "Account",
+            force=True
+        )
+        return {
+            "message": f"{role.capitalize()} account enabled successfully",
+            "userId": user.UserID,
+            "role": user.User_Role,
+            "disabled": user.Is_Disabled
+        }
 
 
 
