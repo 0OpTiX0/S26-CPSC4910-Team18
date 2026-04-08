@@ -415,13 +415,13 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if user.Is_Disabled:
-    raise HTTPException(
-        status_code=403,
-        detail={
-            "message": "Account disabled",
-            "reason": user.Disabled_Reason
-        }
-    )
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": "Account disabled",
+                "reason": user.Disabled_Reason
+            }
+        )
 
     now = datetime.now(timezone.utc)
 
