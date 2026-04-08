@@ -2973,7 +2973,7 @@ def cancelPurchaseOrder(
         if not product:
             raise HTTPException(status_code=404, detail="Product from order no longer exists")
 
-        ensure_order_is_recent(cart
+        ensure_order_is_recent(cart)
 
         product.Product_Qty += cart_item.Prod_Qty
         session.add(product)
