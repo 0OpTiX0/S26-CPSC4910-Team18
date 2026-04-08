@@ -21,14 +21,20 @@ from db import getSession
 
 from models import *
 
-app = FastAPI()
+APP_VERSION = os.getenv("APP_VERSION", "dev")
+app = FastAPI(version=APP_VERSION)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True, 
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/health")
 def health():
     return {"ok": True}
-
-APP_VERSION = os.getenv("APP_VERSION", "dev")
-app = FastAPI(version=APP_VERSION)
 
 # -------------------------
 # BACKEND TODO BACKLOG
@@ -421,13 +427,13 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if user.Is_Disabled:
-    raise HTTPException(
-        status_code=403,
-        detail={
-            "message": "Account disabled",
-            "reason": user.Disabled_Reason
-        }
-    )
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": "Account disabled",
+                "reason": user.Disabled_Reason
+            }
+        )
 
     now = datetime.now(timezone.utc)
 
@@ -652,8 +658,44 @@ def getPointChangeByDate(start_date : datetime, end_date : datetime, driver_id :
 def getDrivers(
     session: Session = Depends(getSession),
 ):
+    # 1. Fetch all drivers
     stmt = select(Driver_User)
     drivers = session.exec(stmt).all()
+    
+    now = datetime.now(timezone.utc)
+    updated = False
+
+    # 2. Check if any suspensions have expired
+    for driver in drivers:
+        if driver.Is_Suspended and driver.Suspension_Until:
+            # Ensure Suspension_Until is offset-aware for comparison
+            until = driver.Suspension_Until
+            if until.tzinfo is None:
+                until = until.replace(tzinfo=timezone.utc)
+            
+            if now > until:
+                # The time has passed! Flip the bits back to active
+                driver.Is_Suspended = False
+                driver.Suspension_Reason = None
+                
+                # Also find the sponsorship record to set it back to "Active"
+                sponsorship_stmt = select(Sponsorship).where(
+                    Sponsorship.Driver_User_ID == driver.Registered_Driver
+                )
+                sponsorships = session.exec(sponsorship_stmt).all()
+                for s in sponsorships:
+                    s.Membership_Status = "Active"
+                    session.add(s)
+                
+                session.add(driver)
+                updated = True
+
+    # 3. If we changed anything, commit it to the database
+    if updated:
+        session.commit()
+        # Re-fetch to get fresh data for the return
+        drivers = session.exec(select(Driver_User)).all()
+
     return drivers
 
 
@@ -2303,6 +2345,9 @@ def createCart(user_id: int, session: Session = Depends(getSession)):
     if not driver:
         raise HTTPException(status_code=404, detail="Driver does not exist")
     
+    if driver.Is_Suspended:
+        raise HTTPException(status_code=403, detail="Your account is currently suspended. You cannot create or use a cart.")
+    
     stmt = select(Cart).where(Cart.DriverID == driver.Registered_Driver, Cart.Status == "Pending").order_by(desc(Cart.CartID))
     existing_cart = session.exec(stmt).first()
     
@@ -2331,6 +2376,11 @@ def createCartItem(cart_id: int,
 
     if not cart:
         raise HTTPException(status_code=404, detail="Cart Not Found /W DriverID!")
+    
+    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == cart.DriverID)).first()
+
+    if driver and driver.Is_Suspended:
+        raise HTTPException(status_code=403, detail="Your account is currently suspended. You cannot add items to your cart.")
 
     product_price = session.exec(select(Product.Product_Price).where(Product.ProductID == prod_id)).first()
     
@@ -2976,7 +3026,7 @@ def cancelPurchaseOrder(
         if not product:
             raise HTTPException(status_code=404, detail="Product from order no longer exists")
 
-        ensure_order_is_recent(cart
+        ensure_order_is_recent(cart)
 
         product.Product_Qty += cart_item.Prod_Qty
         session.add(product)

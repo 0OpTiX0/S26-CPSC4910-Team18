@@ -139,11 +139,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             alert(`${productName} added to your cart!`);
-            loadHeaderStats(); // Refresh the UI badge
+            loadHeaderStats();
             
         } catch (err) {
             console.error("Cart Error:", err);
-            const msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
+            let msg = "An unknown error occurred.";
+            
+            if (err.detail) {
+                msg = err.detail;
+            } else if (err.data && err.data.detail) {
+                msg = err.data.detail;
+            } else if (err.message && err.message !== "API request failed") {
+                msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
+            } else if (typeof err === 'string') {
+                msg = err;
+            }
+
             alert(`Failed to add to cart: ${msg}`);
         }
     };
