@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Sponsor User</title>
+    <link rel="stylesheet" href="output.css">
+    <script src="../config.js"></script>
+    <script src="../js/api.js"></script>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans">
+
+<nav class="p-6 bg-white border-b border-slate-200 shadow-sm">
+    <div class="max-w-4xl mx-auto flex justify-between items-center">
+        <h1 class="text-xl font-bold">Create Sponsor User</h1>
+        <button id="logoutBtn" class="text-red-500 font-bold">Logout</button>
+    </div>
+</nav>
+
+<main class="max-w-xl mx-auto p-6">
+
+    <div class="bg-white rounded-2xl shadow p-6">
+        <h2 class="text-lg font-bold mb-4">New Sponsor User</h2>
+
+        <div class="space-y-4">
+            <input id="name" placeholder="Full Name"
+                class="w-full p-3 border rounded-xl">
+
+            <input id="email" placeholder="Email"
+                class="w-full p-3 border rounded-xl">
+
+            <input id="phone" placeholder="Phone"
+                class="w-full p-3 border rounded-xl">
+
+            <input id="password" type="password" placeholder="Password"
+                class="w-full p-3 border rounded-xl">
+
+            <button id="createBtn"
+                class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700">
+                Create Sponsor User
+            </button>
+
+            <p id="status" class="text-sm text-center"></p>
+        </div>
+    </div>
+
+</main>
+
+<script src="../js/create-sponsor-user.js"></script>
+</body>
+</html>
