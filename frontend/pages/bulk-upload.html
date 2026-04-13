@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../config.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bulk User Upload</title>
+  <link rel="stylesheet" href="output.css" />
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+  <header class="w-full h-20 bg-white border-b border-slate-200 sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-6 h-full flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="index.html" class="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shadow">🚗</a>
+        <div>
+          <p class="text-xs uppercase tracking-wide font-semibold text-slate-500">Good Driver</p>
+          <h1 class="text-lg font-bold">Bulk User Upload</h1>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="upload-role-pill" class="hidden px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700"></span>
+        <a href="index.html" class="text-sm font-semibold text-slate-600 hover:text-slate-900 transition">Back</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-6 py-10 space-y-8">
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/60">
+        <h2 class="text-2xl font-black">Upload users in one file</h2>
+        <p class="mt-2 text-sm text-slate-600">
+          This page uses the bulk-upload endpoints already in the backend. Upload a CSV file with the
+          exact headers the backend expects. Sponsors upload to their own sponsor only. Admins can also
+          set an optional <code class="px-1 py-0.5 rounded bg-slate-100">sponsor_join</code> column.
+        </p>
+      </div>
+
+      <div class="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-5">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wide text-slate-600 mb-2">Choose CSV file</label>
+            <label class="block">
+            <input id="csv-file" type="file" accept=".csv,text/csv" class="hidden" />
+            <span class="inline-block bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold cursor-pointer hover:bg-blue-700 transition">
+              Choose CSV File
+            </span>
+            </label>
+            <p id="file-name" class="mt-2 text-sm text-slate-500">No file selected</p>
+          </div>
+
+          <div class="flex flex-wrap gap-3">
+            <button id="download-template" type="button" class="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm font-bold hover:bg-slate-50 transition">Download template</button>
+            <button id="preview-template" type="button" class="px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm font-bold hover:bg-slate-50 transition">Show sample rows</button>
+            <button id="upload-btn" type="button" class="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold shadow hover:bg-blue-700 transition">Upload CSV</button>
+          </div>
+
+          <div id="status-box" class="hidden rounded-2xl border px-4 py-3 text-sm font-medium"></div>
+
+          <div id="sample-wrap" class="hidden rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-center justify-between gap-3 mb-3">
+              <h3 class="font-bold text-slate-900">Sample CSV</h3>
+              <span id="sample-label" class="text-xs font-semibold px-3 py-1 rounded-full bg-blue-100 text-blue-700"></span>
+            </div>
+            <pre id="sample-text" class="whitespace-pre-wrap break-words text-xs md:text-sm text-slate-700 bg-white border border-slate-200 rounded-xl p-4 overflow-x-auto"></pre>
+          </div>
+        </div>
+
+        <aside class="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+          <div>
+            <h3 class="font-bold text-slate-900">Required columns</h3>
+            <p class="mt-2 text-sm text-slate-600">The backend requires a header row with these columns:</p>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <span class="px-2.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold">name</span>
+              <span class="px-2.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold">role</span>
+              <span class="px-2.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold">email</span>
+              <span class="px-2.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold">phone</span>
+              <span class="px-2.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold">pssw</span>
+              <span id="sponsor-join-pill" class="hidden px-2.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold">sponsor_join (optional)</span>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="font-bold text-slate-900">Allowed roles</h3>
+            <p id="allowed-roles" class="mt-2 text-sm text-slate-600"></p>
+          </div>
+
+          <div>
+            <h3 class="font-bold text-slate-900">Endpoint used</h3>
+            <code id="endpoint-text" class="mt-2 block rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs text-slate-700 break-all"></code>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="results-section" class="hidden grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-emerald-50/60 flex items-center justify-between gap-3">
+          <div>
+            <h3 class="font-bold text-slate-900">Created Users</h3>
+            <p class="text-xs text-slate-500">Successful rows returned by the backend.</p>
+          </div>
+          <span id="created-count" class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">0</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-4 py-3">Line</th>
+                <th class="px-4 py-3">Email</th>
+                <th class="px-4 py-3">Role</th>
+                <th class="px-4 py-3 text-right">User ID</th>
+              </tr>
+            </thead>
+            <tbody id="created-body" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 bg-rose-50/60 flex items-center justify-between gap-3">
+          <div>
+            <h3 class="font-bold text-slate-900">Skipped Rows / Errors</h3>
+            <p class="text-xs text-slate-500">The backend continues processing after row-level errors.</p>
+          </div>
+          <span id="error-count" class="px-3 py-1 rounded-full bg-rose-100 text-rose-700 text-xs font-bold">0</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+              <tr>
+                <th class="px-4 py-3">Line</th>
+                <th class="px-4 py-3">Email</th>
+                <th class="px-4 py-3">Error</th>
+              </tr>
+            </thead>
+            <tbody id="error-body" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/bulk-upload.js"></script>
+</body>
+</html>

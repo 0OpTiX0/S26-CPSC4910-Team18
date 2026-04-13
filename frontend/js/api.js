@@ -1,19 +1,28 @@
 // frontend/js/api.js
-// Lightweight API helper for the static frontend pages.
 (() => {
-  /**
-   * Helper to perform API requests using the global CONFIG object.
-   */
+  function getApiBase() {
+    const fromWindowConfig =
+      window.CONFIG && window.CONFIG.API_BASE_URL
+        ? window.CONFIG.API_BASE_URL
+        : "";
+
+    const fromGlobal =
+      typeof window.__API_BASE__ === "string"
+        ? window.__API_BASE__
+        : "";
+
+    const base =
+      fromWindowConfig ||
+      fromGlobal ||
+      "http://127.0.0.1:8000";
+
+    return base.replace(/\/+$/, "");
+  }
+
   async function request(path, options = {}) {
     const { method = "GET", body, headers = {} } = options;
 
-    let configBase = "http://127.0.0.1:8000";
-    if (window.CONFIG && window.CONFIG.API_BASE_URL) {
-      configBase = window.CONFIG.API_BASE_URL;
-    }
-
-    const API_BASE = configBase.replace(/\/+$/, "");
-    
+    const API_BASE = getApiBase();
     const cleanPath = path.startsWith("/") ? path : "/" + path;
     const url = `${API_BASE}${cleanPath}`;
 
@@ -31,19 +40,19 @@
 
     try {
       const res = await fetch(url, opts);
-      
+
       const text = await res.text();
       let data = null;
-      try { 
-        data = text ? JSON.parse(text) : null; 
-      } catch (parseError) { 
-        data = text; 
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text;
       }
 
       if (!res.ok) {
         const err = new Error("API request failed");
         err.status = res.status;
-        err.data = data; 
+        err.data = data;
         throw err;
       }
 
@@ -55,6 +64,9 @@
   }
 
   window.API = {
-    request: request
+    request,
+    get API_BASE() {
+      return getApiBase();
+    }
   };
 })();
