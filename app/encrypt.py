@@ -9,6 +9,18 @@ def encryptString(input:str) -> str:
     
     return encrypted.decode('utf-8')
 
+def dumbEncryption(_input: str):
+    result = ""
+    for i in _input:
+        result += chr(ord(i)+len(_input))
+    return result
+
+
+def dumbDecryption(_input: str):
+    result = ""
+    for i in _input:
+        result += chr(ord(i)-len(_input))
+    return result
 
 def verifyPassword(attemptedPss:str, correctPss:str)->bool:
     return bcrypt.checkpw(attemptedPss.encode('utf-8'), correctPss.encode('utf-8'))

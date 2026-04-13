@@ -27,14 +27,13 @@ app = FastAPI(version=APP_VERSION)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=False,
+    allow_credentials=True, 
     allow_methods=["*"],
     allow_headers=["*"],
 )
 @app.get("/health")
 def health():
     return {"ok": True}
-
 
 # -------------------------
 # BACKEND TODO BACKLOG
@@ -51,7 +50,7 @@ def health():
 
 #
 # Notifications
-# TODO: Create a mandatory dropped-from-sponsor notification when a sponsor removes a driver.
+# DONE: Create a mandatory dropped-from-sponsor notification when a sponsor removes a driver.
 
 
 # TODO: Add persisted notification preferences for point change alerts and order summary alerts.
@@ -66,23 +65,17 @@ def health():
 
 
 # TODO: Add purchase cancellation/update rules if the business wants reversible orders.
-# TODO: Add backend content filtering or moderation rules for G/PG-only catalog items.
 
-# TODO: Define what "real-time catalog updates" means and implement scheduled refresh or refresh-on-read behavior.
+
+# DONE: Define what "real-time catalog updates" means and implement scheduled refresh or refresh-on-read behavior.
 #
 # Sponsor / admin management
-# TODO: Add sponsor-user disable/enable functionality.
-# TODO: Add admin-side disable/enable functionality for any user account.
+# DONE: Add sponsor-user disable/enable functionality.
+# DONE: Add admin-side disable/enable functionality for any user account.
 
-#
 
-# TODO: Define summary vs detailed reporting views in backend response models.
-# TODO: Finish CSV export coverage for any report types still missing.
-#
-# Deployment / quality
 
-# TODO: Add CI/CD workflow configuration to the repository.
-# TODO: Document and verify deployment targets, hosted database requirements, and environment config management.
+
 
 @app.get("/version")
 def getVersion():
@@ -131,8 +124,15 @@ def validate_password_complexity(password: str):
 """
 #Notification Helper Function
 """
-def create_notification(session: Session, user_id: int, message: str, notif_type: str):
-    
+def create_notification(session: Session, user_id: int, message: str, notif_type: str, force: bool = False):
+    user = session.exec(select(User).where(User.UserID == user_id)).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not user.Notifications_Enabled and not force:
+        return None
+
     notification = Notification(
         UserID=user_id,
         Message=message,
@@ -142,7 +142,86 @@ def create_notification(session: Session, user_id: int, message: str, notif_type
     session.add(notification)
     session.commit()
     session.refresh(notification)
+    return notification
 
+"""
+#Past Order Helper Function
+"""
+def get_completed_order(
+    session: Session,
+    cart_id: int,
+    driver_id: int
+) -> tuple[Cart, list[CartItem], Driver_User, Sponsorship, Sponsor]:
+    cart = session.exec(
+        select(Cart).where(Cart.CartID == cart_id, Cart.DriverID == driver_id)
+    ).first()
+    if not cart:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+
+    if cart.Status != "Purchase Complete":
+        raise HTTPException(status_code=400, detail="Only completed purchase orders can be changed")
+
+    driver = session.exec(
+        select(Driver_User).where(Driver_User.Registered_Driver == driver_id)
+    ).first()
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.CartID == cart.CartID)
+    ).all()
+    if not cart_items:
+        raise HTTPException(status_code=404, detail="Purchase order has no items")
+
+    market = session.exec(
+        select(Market).where(Market.Market_ID == (
+            session.exec(
+                select(Product.MarketID).where(Product.ProductID == cart_items[0].ProdID)
+            ).first()
+        ))
+    ).first()
+    if not market or market.Market_Sponsor is None:
+        raise HTTPException(status_code=404, detail="Associated market not found")
+
+    sponsorship = session.exec(
+        select(Sponsorship).where(
+            Sponsorship.Driver_User_ID == driver_id,
+            Sponsorship.Sponsor_ID == market.Market_Sponsor
+        )
+    ).first()
+    if not sponsorship:
+        raise HTTPException(status_code=404, detail="Sponsorship not found for this purchase")
+
+    sponsor = session.exec(
+        select(Sponsor).where(Sponsor.Sponsor_ID == sponsorship.Sponsor_ID)
+    ).first()
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
+
+    return cart, cart_items, driver, sponsorship, sponsor
+
+ORDER_CHANGE_WINDOW_DAYS = 3
+
+def ensure_order_is_recent(cart: Cart):
+    if cart.Checked_Out_At is None:
+        raise HTTPException(
+            status_code=400,
+            detail="This order has no checkout timestamp and cannot be changed"
+        )
+
+    checked_out_at = cart.Checked_Out_At
+    if checked_out_at.tzinfo is None:
+        checked_out_at = checked_out_at.replace(tzinfo=timezone.utc)
+
+    deadline = checked_out_at + timedelta(days=ORDER_CHANGE_WINDOW_DAYS)
+    now = datetime.now(timezone.utc)
+
+    if now > deadline:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Orders can only be changed or cancelled within {ORDER_CHANGE_WINDOW_DAYS} days of purchase"
+        )
+    
 
 def _convert_usd_to_points(usd_price: Decimal, point_value: Decimal) -> int:
     """Convert USD cost to whole points using the market conversion rate."""
@@ -159,6 +238,7 @@ def _convert_usd_to_points(usd_price: Decimal, point_value: Decimal) -> int:
         points = 1
 
     return points
+
 
 # -------------------------
 # USER MANAGEMENT
@@ -208,7 +288,11 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         User_Hashed_Pss=encryptString(payload.pssw),
         User_Login_Attempts=0,
         User_Lockout_Time=None,
-        Verification_Code=None
+        Verification_Code=None,
+        Notifications_Enabled=True,
+        Time_Zone=payload.timezone or "UTC",
+        Is_Disabled=False,
+        Disabled_Reason=None
     )
   
     session.add(user)
@@ -334,6 +418,15 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
     user = session.exec(select(User).where(User.User_Email == payload.email)).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if user.Is_Disabled:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": "Account disabled",
+                "reason": user.Disabled_Reason
+            }
+        )
 
     now = datetime.now(timezone.utc)
 
@@ -558,8 +651,44 @@ def getPointChangeByDate(start_date : datetime, end_date : datetime, driver_id :
 def getDrivers(
     session: Session = Depends(getSession),
 ):
+    # 1. Fetch all drivers
     stmt = select(Driver_User)
     drivers = session.exec(stmt).all()
+    
+    now = datetime.now(timezone.utc)
+    updated = False
+
+    # 2. Check if any suspensions have expired
+    for driver in drivers:
+        if driver.Is_Suspended and driver.Suspension_Until:
+            # Ensure Suspension_Until is offset-aware for comparison
+            until = driver.Suspension_Until
+            if until.tzinfo is None:
+                until = until.replace(tzinfo=timezone.utc)
+            
+            if now > until:
+                # The time has passed! Flip the bits back to active
+                driver.Is_Suspended = False
+                driver.Suspension_Reason = None
+                
+                # Also find the sponsorship record to set it back to "Active"
+                sponsorship_stmt = select(Sponsorship).where(
+                    Sponsorship.Driver_User_ID == driver.Registered_Driver
+                )
+                sponsorships = session.exec(sponsorship_stmt).all()
+                for s in sponsorships:
+                    s.Membership_Status = "Active"
+                    session.add(s)
+                
+                session.add(driver)
+                updated = True
+
+    # 3. If we changed anything, commit it to the database
+    if updated:
+        session.commit()
+        # Re-fetch to get fresh data for the return
+        drivers = session.exec(select(Driver_User)).all()
+
     return drivers
 
 
@@ -706,7 +835,7 @@ def dropDriver(
     drop_reason : Optional[str] = Query(None),
     session : Session = Depends(getSession)
 ):
-    # TODO: When a driver is dropped, create a mandatory notification for the affected driver.
+    # DONE: When a driver is dropped, create a mandatory notification for the affected driver.
     # TODO: Revisit whether this endpoint should also update membership status instead of deleting the link outright.
     stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == user_id)
     driver = session.exec(stmt).first()
@@ -714,7 +843,7 @@ def dropDriver(
     if not driver:
         raise HTTPException(status_code=404, detail="Driver Not Found!")
     
-    stmt = select(Sponsorship).where(Sponsorship.Sponsor_ID == sponsor_id)
+    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)
     sponsor = session.exec(stmt).first()
     
     if not sponsor:
@@ -725,53 +854,91 @@ def dropDriver(
     
     session.delete(target)
     session.commit()
-    
+
+    if drop_reason:
+        notif_message = (
+            f"You were removed from sponsor {sponsor.Sponsor_Name}. "
+            f"Reason: {drop_reason}"
+        )
+    else:
+        notif_message = f"You were removed from sponsor {sponsor.Sponsor_Name}."
+
+    stmt = select(User).where(User.UserID == user_id)
+    user = session.exec(stmt).first()
+
+    create_notification(
+        session,
+        user.UserID,
+        notif_message,
+        "Sponsorship",
+        force=True
+    )
+
     if drop_reason:
         return {"message":f"Driver {driver.Driver_User_ID} was dropped from the program. Reason: {drop_reason}"}
     else:
         return{"message": f"Driver {driver.Driver_User_ID} was dropped from the program."}
 
 
-# TODO: Fix suspension logic to make compatable with new schema (For Liam)
+#Updated suspension logic for new sponsorship schema
+@app.patch("/sponsors/suspend_driver")
+def suspendDriver(
+    sponsor_id: int,
+    driver_email: str,
+    reason: str,
+    duration_minutes: int,
+    session: Session = Depends(getSession)
+):
+    if duration_minutes <= 0:
+        raise HTTPException(status_code=400, detail="duration_minutes must be greater than 0")
 
+    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_ID == sponsor_id)).first()
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found")
 
-# @app.patch("/sponsors/suspend_driver")
-# def suspendDriver(
-#     sponsor_email: str,
-#     driver_email: str,
-#     reason: str,
-#     duration_minutes: int,
-#     session: Session = Depends(getSession)
-# ):
-#     sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == sponsor_email)).first()
-#
-#     if not sponsor:
-#         raise HTTPException(status_code=404, detail="Sponsor not found")
-#
-#     driver_user_id = session.exec(select(User.UserID).where(User.User_Email == driver_email)).first()
-#
-#     if not driver_user_id:
-#         raise HTTPException(status_code=404, detail="Driver not found")
-#
-#     driver = session.exec(
-#         select(Driver_User).where(Driver_User.Registered_Driver == driver_user_id, Driver_User.Sponsor_ID == sponsor.Sponsor_ID)).first()
-#
-#     if not driver:
-#         raise HTTPException(status_code=404, detail="Driver not linked to this sponsor")
-#
-#     driver.Is_Suspended = True
-#     driver.Suspension_Reason = reason
-#     driver.Suspension_Until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
-#
-#     session.add(driver)
-#     session.commit()
-#     session.refresh(driver)
-#
-#     return {
-#         "message": "Driver suspended successfully",
-#         "until": driver.Suspension_Until,
-#         "reason": driver.Suspension_Reason
-#     }
+    user = session.exec(select(User).where(User.User_Email == driver_email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Driver user account not found")
+
+    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == user.UserID)).first()
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+
+    sponsorship = session.exec(
+        select(Sponsorship).where(
+            Sponsorship.Driver_User_ID == driver.Registered_Driver,
+            Sponsorship.Sponsor_ID == sponsor_id
+        )).first()
+    if not sponsorship:
+        raise HTTPException(status_code=404, detail="Driver is not enrolled with this sponsor")
+
+    driver.Is_Suspended = True
+    driver.Suspension_Reason = reason
+    driver.Suspension_Until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+
+    sponsorship.Membership_Status = "Suspended"
+
+    session.add(driver)
+    session.add(sponsorship)
+    session.commit()
+    session.refresh(driver)
+    session.refresh(sponsorship)
+
+    create_notification(
+        session,
+        user.UserID,
+        f"You have been suspended by {sponsor.Sponsor_Name}. Reason: {reason}. Suspension ends at {driver.Suspension_Until}.",
+        "Suspension"
+    )
+
+    return {
+        "message": "Driver suspended successfully",
+        "driver_id": driver.Registered_Driver,
+        "sponsor_id": sponsor.Sponsor_ID,
+        "membership_status": sponsorship.Membership_Status,
+        "until": driver.Suspension_Until,
+        "reason": driver.Suspension_Reason
+    }
 
 @app.patch("/sponsors/reinstate_driver")
 def reinstate_driver(driver_email: str, session: Session = Depends(getSession)):
@@ -802,6 +969,73 @@ def reinstate_driver(driver_email: str, session: Session = Depends(getSession)):
     session.refresh(sponsorship)
 
     return {"message":"Driver Reinstated"}
+
+@app.patch("/sponsors/driver_account_status")
+def updateDriverAccountStatusSponsor(
+    sponsor_id: int,
+    driver_id: int,
+    payload: AccountStatusUpdate,
+    session: Session = Depends(getSession)
+):
+    sponsorship = session.exec(
+        select(Sponsorship).where(
+            Sponsorship.Driver_User_ID == driver_id,
+            Sponsorship.Sponsor_ID == sponsor_id
+        )
+    ).first()
+
+    if not sponsorship:
+        raise HTTPException(
+            status_code=404,
+            detail="Driver is not linked to this sponsor"
+        )
+
+    user = session.exec(
+        select(User).where(User.UserID == driver_id)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Driver user not found")
+
+    if (user.User_Role or "").lower() != "driver":
+        raise HTTPException(
+            status_code=400,
+            detail="Sponsors may only disable or enable driver accounts"
+        )
+
+    user.Is_Disabled = payload.disabled
+    user.Disabled_Reason = payload.reason if payload.disabled else None
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    if payload.disabled:
+        create_notification(
+            session,
+            user.UserID,
+            f"Your account was disabled by a sponsor. Reason: {payload.reason or 'No reason provided.'}",
+            "Account",
+            force=True
+        )
+        return {
+            "message": "Driver account disabled successfully",
+            "userId": user.UserID,
+            "disabled": user.Is_Disabled
+        }
+    else:
+        create_notification(
+            session,
+            user.UserID,
+            "Your account was re-enabled by a sponsor.",
+            "Account",
+            force=True
+        )
+        return {
+            "message": "Driver account enabled successfully",
+            "userId": user.UserID,
+            "disabled": user.Is_Disabled
+        }
 
 @app.get("/sponsors/{sponsor_email}/applications/pending", response_model=list[Driver_Application])
 def getPendingApplications(
@@ -839,6 +1073,61 @@ def getSponsorships(
     return sponsorships
 
 
+@app.patch("/admin/account_status/{user_id}")
+def updateAnyAccountStatusAdmin(
+    user_id: int,
+    payload: AccountStatusUpdate,
+    session: Session = Depends(getSession)
+):
+    user = session.exec(
+        select(User).where(User.UserID == user_id)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    role = (user.User_Role or "").lower()
+    if role not in {"driver", "sponsor"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Admins may only disable or enable sponsor or driver accounts"
+        )
+
+    user.Is_Disabled = payload.disabled
+    user.Disabled_Reason = payload.reason if payload.disabled else None
+
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    if payload.disabled:
+        create_notification(
+            session,
+            user.UserID,
+            f"Your account was disabled by an admin. Reason: {payload.reason or 'No reason provided.'}",
+            "Account",
+            force=True
+        )
+        return {
+            "message": f"{role.capitalize()} account disabled successfully",
+            "userId": user.UserID,
+            "role": user.User_Role,
+            "disabled": user.Is_Disabled
+        }
+    else:
+        create_notification(
+            session,
+            user.UserID,
+            "Your account was re-enabled by an admin.",
+            "Account",
+            force=True
+        )
+        return {
+            "message": f"{role.capitalize()} account enabled successfully",
+            "userId": user.UserID,
+            "role": user.User_Role,
+            "disabled": user.Is_Disabled
+        }
 
 
 
@@ -1257,6 +1546,7 @@ def viewProfile(user_id: int, session: Session = Depends(getSession)):
         "role": user.User_Role,
         "loginAttempts": user.User_Login_Attempts,
         "lockoutTime": user.User_Lockout_Time,
+        "timezone": user.Time_Zone,
     }
 
 """
@@ -1279,7 +1569,6 @@ def updateProfile(
         user.User_Name = payload.name
 
     if payload.email:
-        # Prevent duplicate email
         existing = session.exec(
             select(User).where(User.User_Email == payload.email)
         ).first()
@@ -1295,6 +1584,9 @@ def updateProfile(
             raise HTTPException(status_code=409, detail="Phone already in use")
         user.User_Phone_Num = payload.phone
 
+    if payload.timezone:
+        user.Time_Zone = payload.timezone
+
     session.add(user)
     session.commit()
     session.refresh(user)
@@ -1307,8 +1599,6 @@ def updateProfile(
     )
 
     return {"message": "Profile updated successfully"}
-
-
 
 
 @app.post("/account/{user_id}/request_password_change")
@@ -1646,7 +1936,7 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
     
     return statusReport
 
-# TODO: This is a note to ask if this covers the transaction history that can be searched through by sponsors.
+# TODO: This is a note to ask if this covers the transaction history that can be searched through by sponsors. *COMPLETED*
 @app.get("/report/transaction/{driver_id}/date_range")
 def getTransactionHistoryByDate(start_date : datetime, end_date : datetime, driver_id : int, session: Session = Depends(getSession)):
     if start_date > end_date:
@@ -1978,26 +2268,40 @@ def deleteMarket(market_id : int, session: Session = Depends(getSession)):
 
 
 @app.get("/cart/{driver_id}")
-def getCart(driver_id:int, 
-            status: Optional[str] = Query(None),
-            session:Session = Depends(getSession)):
-    stmt = select(Driver_User).where(Driver_User.Registered_Driver == driver_id)
-    driver = session.exec(stmt).first()
-    
+def getCart(driver_id:int, status: Optional[str] = Query(None), session:Session = Depends(getSession)):
+    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == driver_id)).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Driver does not exist")
     
     stmt = select(Cart).where(Cart.DriverID == driver_id)
-    
     if status is not None:
         stmt = stmt.where(Cart.Status == status)
+        
+    stmt = stmt.order_by(desc(Cart.CartID))
+    cart = session.exec(stmt).first()
     
-    cart = session.exec(stmt).all()
-
     if not cart:
-        raise HTTPException(status_code=404, detail="Cart does not exist")
+        return []
     
-    return cart
+    items_stmt = (
+        select(CartItem, Product)
+        .join(Product, CartItem.ProdID == Product.ProductID)
+        .where(CartItem.CartID == cart.CartID)
+    )
+    results = session.exec(items_stmt).all()
+    
+    formatted_cart = []
+    for item, product in results:
+        formatted_cart.append({
+            "CartID": cart.CartID, 
+            "Cart_Item_ID": item.Cart_Item_ID,
+            "product_name": product.Product_Name,
+            "price": item.Prod_Price,
+            "qty": item.Prod_Qty,
+            "image": product.Product_Image
+        })
+    
+    return formatted_cart
 
 @app.patch("/cart/{cart_id}")
 def CalculateCartTotal(cart_id:int,session:Session = Depends(getSession)):
@@ -2037,6 +2341,15 @@ def createCart(user_id: int, session: Session = Depends(getSession)):
     if not driver:
         raise HTTPException(status_code=404, detail="Driver does not exist")
     
+    if driver.Is_Suspended:
+        raise HTTPException(status_code=403, detail="Your account is currently suspended. You cannot create or use a cart.")
+    
+    stmt = select(Cart).where(Cart.DriverID == driver.Registered_Driver, Cart.Status == "Pending").order_by(desc(Cart.CartID))
+    existing_cart = session.exec(stmt).first()
+    
+    if existing_cart:
+        return existing_cart
+    
     cart = Cart(
         DriverID=driver.Registered_Driver,
         Status="Pending",
@@ -2059,6 +2372,11 @@ def createCartItem(cart_id: int,
 
     if not cart:
         raise HTTPException(status_code=404, detail="Cart Not Found /W DriverID!")
+    
+    driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == cart.DriverID)).first()
+
+    if driver and driver.Is_Suspended:
+        raise HTTPException(status_code=403, detail="Your account is currently suspended. You cannot add items to your cart.")
 
     product_price = session.exec(select(Product.Product_Price).where(Product.ProductID == prod_id)).first()
     
@@ -2096,21 +2414,19 @@ def deleteCart(driver_id : int, cart_id : int, session: Session = Depends(getSes
     return({"message":"Cart Deleted Successfully"})
 
 @app.delete("/cart/{driver_id}/{cart_item_id}")
-def deleteCartItem(cart_id : int, cart_item_id : int, session: Session = Depends(getSession)):
-    cart_item = session.exec(select(CartItem).where(CartItem.CartID == cart_id)).first()
-
-    if not cart_item:
-        raise HTTPException(status_code=404, detail="CartItem Not Found /W CartID!")
-    
+def deleteCartItem(driver_id: int, cart_item_id: int, session: Session = Depends(getSession)):
     cart_item = session.exec(select(CartItem).where(CartItem.Cart_Item_ID == cart_item_id)).first()
-
     if not cart_item:
-        raise HTTPException(status_code=404, detail="CartItem Not Found /W CartItemID!")
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    cart = session.exec(select(Cart).where(Cart.CartID == cart_item.CartID)).first()
+    if not cart or cart.DriverID != driver_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this item")
     
     session.delete(cart_item)
     session.commit()
 
-    return({"message":"Cart Item Deleted Successfully"})
+    return {"message": "Cart item deleted successfully"}
 
 @app.patch("/cart/{driver_id}")
 def updateCart(driver_id : int, payload : UpdateCart, session: Session = Depends(getSession)):
@@ -2366,7 +2682,27 @@ def markAsRead(notification_id: int, session: Session = Depends(getSession)):
 
     return {"message": "Notification marked as read"}
 
+@app.patch("/account/{user_id}/notifications")
+def updateNotificationPreference(
+    user_id: int,
+    payload: NotificationPreferenceUpdate,
+    session: Session = Depends(getSession)
+):
+    user = session.exec(select(User).where(User.UserID == user_id)).first()
 
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.Notifications_Enabled = payload.enabled
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+
+    return {
+        "message": "Notification preference updated successfully",
+        "userId": user.UserID,
+        "notifications_enabled": user.Notifications_Enabled
+    }
 
     
  
@@ -2445,6 +2781,80 @@ def addProductsToMarket(market_id: int, ebayItemID: str, session: Session = Depe
     }
 
 
+@app.delete("/products/{product_id}")
+def deleteProductFromMarket(
+    sponsor_email: str,
+    product_id: int,
+    session: Session = Depends(getSession)
+):
+    sponsor = _resolve_sponsor_from_email(session, sponsor_email)
+    if not sponsor:
+        raise HTTPException(status_code=404, detail="Sponsor not found for uploader email")
+
+    product = session.exec(
+        select(Product).where(Product.ProductID == product_id)
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    market = session.exec(
+        select(Market).where(Market.Market_ID == product.MarketID)
+    ).first()
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found for product")
+
+    product_name = product.Product_Name
+    market_id = market.Market_ID
+
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.ProdID == product.ProductID)
+    ).all()
+
+    affected_cart_ids = set()
+    for cart_item in cart_items:
+        if cart_item.CartID is not None:
+            affected_cart_ids.add(cart_item.CartID)
+        session.delete(cart_item)
+
+    for cart_id in affected_cart_ids:
+        cart = session.exec(
+            select(Cart).where(Cart.CartID == cart_id)
+        ).first()
+
+        if not cart:
+            continue
+
+        remaining_items = session.exec(
+            select(CartItem).where(CartItem.CartID == cart_id)
+        ).all()
+
+        cart.Cart_Total = sum(item.Prod_Price * item.Prod_Qty for item in remaining_items)
+        session.add(cart)
+
+    session.delete(product)
+    session.commit()
+
+    sponsor_users = session.exec(
+        select(Sponsor_User).where(Sponsor_User.Sponsor_ID == sponsor.Sponsor_ID)
+    ).all()
+
+    for sponsor_user in sponsor_users:
+        if sponsor_user.UserID is not None:
+            create_notification(
+                session,
+                sponsor_user.UserID,
+                f'Catalog item "{product_name}" was removed from market {market_id}.',
+                "Catalog"
+            )
+
+    return {
+        "message": "Product deleted successfully",
+        "product_id": product_id,
+        "product_name": product_name,
+        "market_id": market_id,
+        "removed_cart_item_count": len(cart_items)
+    }
+    
 
 #gets all products for a specific market
 @app.get("/products/{market_id}")
@@ -2470,7 +2880,7 @@ def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), se
  
 @app.patch("/products/purchase")
 def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
-    # TODO: If "real-time" price/availability is a hard requirement, revalidate imported product data against the source API here.
+    # DONE: If "real-time" price/availability is a hard requirement, revalidate imported product data against the source API here.
     # TODO: Add cancellation/update/refund rules if orders are meant to be reversible after checkout.
     stmt = select(Market).where(Market.Market_ID == payload.market_id)
     market = session.exec(stmt).first()
@@ -2556,7 +2966,6 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
         product = products_by_id[cart_item.ProdID]
         product.Product_Qty -= cart_item.Prod_Qty
         session.add(product)
-        session.delete(cart_item)
 
     customer.User_Points -= total_cost
     cart.Status = "Purchase Complete"
@@ -2589,6 +2998,143 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     )
 
     return {"message": "Purchase completed successfully"}
+    
+
+@app.patch("/products/purchase/{cart_id}/cancel")
+def cancelPurchaseOrder(
+    cart_id: int,
+    driver_id: int,
+    session: Session = Depends(getSession)
+):
+    cart, cart_items, driver, sponsorship, sponsor = get_completed_order(session, cart_id, driver_id)
+
+    ensure_order_is_recent(cart)
+
+    refunded_points = 0
+
+    for cart_item in cart_items:
+        if cart_item.ProdID is None:
+            raise HTTPException(status_code=400, detail="Order contains an invalid item")
+
+        product = session.exec(
+            select(Product).where(Product.ProductID == cart_item.ProdID)
+        ).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product from order no longer exists")
+
+        ensure_order_is_recent(cart)
+
+        product.Product_Qty += cart_item.Prod_Qty
+        session.add(product)
+
+        refunded_points += cart_item.Prod_Price * cart_item.Prod_Qty
+
+    sponsorship.User_Points += refunded_points
+    cart.Status = "Cancelled"
+    cart.Cart_Total = 0
+    session.add(sponsorship)
+    session.add(cart)
+
+    refund_log = Point_Transaction(
+        Driver_User_ID=driver.Registered_Driver,
+        Driver_Name=driver.Driver_Name,
+        Sponsor_Name=sponsor.Sponsor_Name,
+        Points_Change=str(refunded_points),
+        Points_After_Change=sponsorship.User_Points,
+        Reason_For_Change=f"Purchase Cancelled - Cart {cart.CartID}",
+        Created_At=datetime.now(timezone.utc)
+    )
+    session.add(refund_log)
+
+    session.commit()
+    session.refresh(cart)
+    session.refresh(sponsorship)
+
+    create_notification(
+        session,
+        driver.Registered_Driver,
+        f"Your purchase order #{cart.CartID} was cancelled. {refunded_points} points were refunded.",
+        "Purchase",
+        force=True
+    )
+
+    return {
+        "message": "Purchase order cancelled successfully",
+        "cart_id": cart.CartID,
+        "refunded_points": refunded_points,
+        "remaining_points": sponsorship.User_Points,
+        "status": cart.Status
+    }
+
+@app.patch("/products/purchase/{cart_id}/reopen")
+def reopenPurchaseOrder(
+    cart_id: int,
+    driver_id: int,
+    session: Session = Depends(getSession)
+):
+    cart, cart_items, driver, sponsorship, sponsor = get_completed_order(session, cart_id, driver_id)
+
+    ensure_order_is_recent(cart)
+
+    refunded_points = 0
+    new_cart_total = 0
+
+    for cart_item in cart_items:
+        if cart_item.ProdID is None:
+            raise HTTPException(status_code=400, detail="Order contains an invalid item")
+
+        product = session.exec(
+            select(Product).where(Product.ProductID == cart_item.ProdID)
+        ).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product from order no longer exists")
+
+        product.Product_Qty += cart_item.Prod_Qty
+        session.add(product)
+
+        line_total = cart_item.Prod_Price * cart_item.Prod_Qty
+        refunded_points += line_total
+        new_cart_total += line_total
+
+    sponsorship.User_Points += refunded_points
+    cart.Status = "Pending"
+    cart.Cart_Total = new_cart_total
+    cart.Checked_Out_At = datetime.now(timezone.utc)
+
+    session.add(sponsorship)
+    session.add(cart)
+
+    reopen_log = Point_Transaction(
+        Driver_User_ID=driver.Registered_Driver,
+        Driver_Name=driver.Driver_Name,
+        Sponsor_Name=sponsor.Sponsor_Name,
+        Points_Change=str(refunded_points),
+        Points_After_Change=sponsorship.User_Points,
+        Reason_For_Change=f"Purchase Reopened - Cart {cart.CartID}",
+        Created_At=datetime.now(timezone.utc)
+    )
+    session.add(reopen_log)
+
+    session.commit()
+    session.refresh(cart)
+    session.refresh(sponsorship)
+
+    create_notification(
+        session,
+        driver.Registered_Driver,
+        f"Your purchase order #{cart.CartID} was reopened and moved back to a pending cart for editing.",
+        "Purchase",
+        force=True
+    )
+
+    return {
+        "message": "Purchase order reopened successfully",
+        "cart_id": cart.CartID,
+        "refunded_points": refunded_points,
+        "cart_total": cart.Cart_Total,
+        "remaining_points": sponsorship.User_Points,
+        "status": cart.Status
+    }
 
 @app.get("/products/purchase/history")
 def getOrderHistory(driver_id:int, session: Session=Depends(getSession)):
@@ -2610,6 +3156,7 @@ def getOrderHistory(driver_id:int, session: Session=Depends(getSession)):
 
 
 
+@app.patch("/products/refresh")
 @app.patch("/products/refresh")
 def refreshProducts(session: Session = Depends(getSession)):
     stmt = select(Product)

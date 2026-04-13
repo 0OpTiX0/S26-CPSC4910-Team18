@@ -18,6 +18,10 @@ class User(SQLModel, table=True):
     User_Login_Attempts : int = Field(default=0)
     User_Lockout_Time : Optional[datetime] = Field(default=None)
     Verification_Code : Optional[str] = Field(default = None)
+    Notifications_Enabled: bool = Field(default=True)
+    Time_Zone: str = Field(default="UTC")
+    Is_Disabled: bool = Field(default=False)
+    Disabled_Reason: Optional[str] = None
 
 class Market(SQLModel, table=True):
     __tablename__ = "Market"
@@ -177,13 +181,13 @@ class UserCreate(BaseModel):
     logattp: int = 0
     lockout: Optional[datetime] = None
     verification_code: Optional[str] = None
+    timezone: Optional[str] = "UTC"
     
 class LoginRequest(BaseModel):
     email: str
     password: str
     
 
-    
 class ApplicationRequest(BaseModel):
     appEmail: str
     sponsEmail: str
@@ -201,12 +205,15 @@ class SponsorCreate(BaseModel):
     email: str
     phone: str
     
-
+class AccountStatusUpdate(BaseModel):
+    disabled: bool
+    reason: Optional[str] = None
 
 class ProfileUpdateRequest(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+    timezone: Optional[str] = None
 
 
 class ChangePasswordRequest(BaseModel):
@@ -240,6 +247,9 @@ class NewPointChange(BaseModel):
     reason:str
     created_at: Optional[datetime] = None
 
+class NotificationPreferenceUpdate(BaseModel):
+    enabled: bool
+
 # Market Payload
 
 class MarketCreate(BaseModel):
@@ -269,6 +279,7 @@ class Purchase(BaseModel):
     market_id: int
     product_id: int
     driver_id: int
+    sponsor_user_email: Optional[str] = None
     
     
 class PointToDollar(BaseModel):

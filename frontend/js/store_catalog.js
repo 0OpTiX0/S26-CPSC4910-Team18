@@ -5,76 +5,121 @@ document.addEventListener('DOMContentLoaded', async () => {
     const effectiveRole = window.GDUserView?.getEffectiveRole(session) || String(session?.role || '').toLowerCase();
     const driverPreview = !!window.GDUserView?.isDriverViewActive?.(session);
 
-    async function loadHeaderStats() {
+    if (!session) {
+        window.location.href = "login.html";
+        return;
+    }
+
+    let currentSponsorId = null;
+    let currentMarketId = null;
+
+    async function initializeStoreContext() {
         try {
-            if (session?.userId && !driverPreview) {
-                const points = await window.API.request(`/points/${session.userId}`);
-                pointsDisplay.textContent = typeof points === 'number' ? points : (points?.total_points || 0);
-            } else if (pointsDisplay) {
-                pointsDisplay.textContent = driverPreview ? 'Preview' : '0';
+            const sponsorships = await window.API.request(`/admin/get_sponsor_list?driver_id=${session.userId}`);
+            
+            if (Array.isArray(sponsorships) && sponsorships.length > 0) {
+                currentSponsorId = sponsorships[0].Sponsor_ID;
+            } else {
+                console.warn("Could not find a sponsor via /admin/get_sponsor_list. Attempting fallback...");
+                currentSponsorId = 1; 
             }
 
-            const localCart = JSON.parse(localStorage.getItem("gd_cart")) || [];
-            updateCartUI(localCart.length);
+            const savedMarketKey = `gd_market_id_sponsor_${currentSponsorId}`;
+            currentMarketId = localStorage.getItem(savedMarketKey) || 1; 
+
+            return true;
+        } catch (error) {
+            console.error("Failed to initialize store context:", error);
+            currentSponsorId = 1;
+            currentMarketId = 1;
+            return true;
+        }
+    }
+
+    async function loadHeaderStats() {
+        if (!currentSponsorId) {
+            console.error("CRITICAL: currentSponsorId is null. Cannot fetch points.");
+            updateCartUI(0);
+            return;
+        }
+
+        try {
+            const cacheBuster = Date.now();
+            const points = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
+            pointsDisplay.textContent = points;
+
+            const cartWrapper = await window.API.request(`/cart/${session.userId}?status=Pending`);
+            
+            if (cartWrapper && cartWrapper.length > 0) {
+                updateCartUI("!");
+            } else {
+                updateCartUI(0);
+            }
         } catch (error) {
             console.error("Header sync failed:", error);
-            if (pointsDisplay && driverPreview) pointsDisplay.textContent = 'Preview';
+            updateCartUI(0);
         }
     }
 
     function updateCartUI(count) {
-        let badge = document.getElementById('cart-count-badge');
-        if (!badge) {
+        let cart_count = document.getElementById('cart-count-badge');
+        if (!cart_count) {
             const cartLink = document.querySelector('a[href="cart.html"]') || document.querySelector('nav');
-            badge = document.createElement('span');
-            badge.id = 'cart-count-badge';
-            badge.className = "ml-1 bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full";
-            cartLink.appendChild(badge);
+            cart_count = document.createElement('span');
+            cart_count.id = 'cart-count-badge';
+            cart_count.className = "absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white";
+            cartLink.appendChild(cart_count);
         }
-        badge.textContent = count;
+        cart_count.textContent = count;
+        cart_count.style.display = count !== 0 ? 'flex' : 'none'; 
     }
 
-    const mockProducts = [
-        {
-            id: "ebay-test-001",
-            name: "Sony Wireless Noise Cancelling Headphones",
-            image: "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?auto=format&fit=crop&w=600&q=80",
-            price_pts: 5
+    function showError(message) {
+        if (catalogContainer) {
+            catalogContainer.innerHTML = `
+                <div class="p-12 text-center col-span-full text-red-500 font-bold border-2 border-dashed border-red-200 rounded-3xl bg-red-50">
+                    ${message}
+                </div>`;
         }
-    ];
+    }
 
-    function renderCatalog() {
-        if (!catalogContainer) return;
+    async function loadProducts() {
+        if (!catalogContainer || !currentMarketId) return;
+        
+        try {
+            const products = await window.API.request(`/products/${currentMarketId}`);
+
+            if (!products || products.length === 0) {
+                catalogContainer.innerHTML = `
+                    <div class="p-12 text-center col-span-full border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50">
+                        <p class="text-slate-500 font-medium italic">Your sponsor hasn't added any products to this market yet.</p>
+                    </div>`;
+                return;
+            }
+
+            renderCatalog(products);
+        } catch (error) {
+            console.error("Failed to load products:", error);
+            showError("Failed to load catalog. Ensure your backend is running.");
+        }
+    }
+
+    function renderCatalog(products) {
         catalogContainer.innerHTML = '';
 
-        if (effectiveRole !== 'driver') {
-            catalogContainer.innerHTML = `
-                <div class="p-12 text-center col-span-full bg-white rounded-3xl border border-slate-200">
-                    <h2 class="text-2xl font-bold text-slate-900 mb-2">Driver access required</h2>
-                    <p class="text-slate-500">This catalog is available to drivers. Sponsor users can use Driver View in the navigation to preview it.</p>
-                </div>
-            `;
-            return;
-        }
-
-        if (driverPreview) {
-            const previewNote = document.createElement('div');
-            previewNote.className = "col-span-full mb-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900";
-            previewNote.innerHTML = `<strong>Preview mode:</strong> You can browse the driver catalog, but cart checkout is disabled for sponsor users.`;
-            catalogContainer.appendChild(previewNote);
-        }
-
-        mockProducts.forEach(product => {
+        products.forEach(product => {
             const card = document.createElement('div');
-            card.className = "bg-white rounded-3xl border border-slate-200 overflow-hidden p-4";
+            card.className = "bg-white rounded-3xl border border-slate-200 overflow-hidden p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col";
     
             card.innerHTML = `
-                <img src="${product.image}" class="w-full h-40 object-cover rounded-2xl mb-4">
-                <h3 class="font-bold text-slate-900">${product.name}</h3>
-                <p class="text-blue-600 font-black mb-4">${product.price_pts} pts</p>
-                <button onclick="addToCart('${product.id}', '${product.name.replace(/'/g, "\\'")}')" 
-                        class="w-full bg-slate-900 text-white py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-600 transition-colors">
-                    ${driverPreview ? 'Preview Add to Cart' : 'Add to Cart'}
+                <img src="${product.Product_Image || 'https://via.placeholder.com/600'}" alt="Product Image" class="w-full h-40 object-cover rounded-2xl mb-4">
+                <h3 class="font-bold text-slate-900 line-clamp-2 mb-2 flex-grow" title="${product.Product_Name}">${product.Product_Name}</h3>
+                <p class="text-xs text-slate-500 line-clamp-2 mb-4" title="${product.Product_Description}">${product.Product_Description || "No description."}</p>
+                <p class="text-blue-600 font-black mb-4">${product.Product_Price} pts</p>
+                
+                <button onclick="addToCart(${product.ProductID}, '${product.Product_Name.replace(/'/g, "\\'")}')" 
+                        class="w-full mt-auto bg-slate-900 text-white py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-600 transition-colors">
+                    Add to Cart
                 </button>
             `;
             catalogContainer.appendChild(card);
@@ -82,38 +127,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     window.addToCart = async (productId, productName) => {
-        const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user") || 'null');
-        if (!session) {
-            alert("Please log in again.");
-            return;
+        try {
+            const activeCart = await window.API.request(`/cart/${session.userId}`, {
+                method: "POST"
+            });
+
+            if (!activeCart || !activeCart.CartID) {
+                throw new Error("Could not create or locate a Cart ID.");
+            }
+
+            await window.API.request(`/cart/cart_item/${activeCart.CartID}?prod_id=${productId}&prod_qty=1`, {
+                method: "POST"
+            });
+
+            alert(`${productName} added to your cart!`);
+            loadHeaderStats();
+            
+        } catch (err) {
+            console.error("Cart Error:", err);
+            let msg = "An unknown error occurred.";
+            
+            if (err.detail) {
+                msg = err.detail;
+            } else if (err.data && err.data.detail) {
+                msg = err.data.detail;
+            } else if (err.message && err.message !== "API request failed") {
+                msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
+            } else if (typeof err === 'string') {
+                msg = err;
+            }
+
+            alert(`Failed to add to cart: ${msg}`);
         }
-
-        const previewMode = !!window.GDUserView?.isDriverViewActive?.(session);
-        const role = window.GDUserView?.getEffectiveRole(session) || String(session.role || '').toLowerCase();
-        if (role !== 'driver') {
-            alert('Only drivers can use the rewards store.');
-            return;
-        }
-
-        let localCart = JSON.parse(localStorage.getItem("gd_cart")) || [];
-
-        localCart.push({
-            Cart_ID: Date.now(), 
-            product_id: productId,
-            product_name: productName,
-            price: 5,
-            preview_only: previewMode
-        });
-
-        localStorage.setItem("gd_cart", JSON.stringify(localCart));
-
-        alert(previewMode
-            ? `${productName} added to the preview cart. Checkout will stay disabled in Driver View.`
-            : `${productName} added to your cart!`);
-        
-        updateCartUI(localCart.length);
     };
 
-    loadHeaderStats();
-    renderCatalog();
+    async function init() {
+        const hasContext = await initializeStoreContext();
+        if (hasContext) {
+            loadHeaderStats();
+            loadProducts();
+        }
+    }
+
+    init();
 });
