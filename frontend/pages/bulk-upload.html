@@ -29,9 +29,7 @@
       <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/60">
         <h2 class="text-2xl font-black">Upload users in one file</h2>
         <p class="mt-2 text-sm text-slate-600">
-          This page uses the bulk-upload endpoints already in the backend. Upload a CSV file with the
-          exact headers the backend expects. Sponsors upload to their own sponsor only. Admins can also
-          set an optional <code class="px-1 py-0.5 rounded bg-slate-100">sponsor_join</code> column.
+          Upload a CSV file to add users in one step. Sponsors can upload users for their own organization. Admins can also include an optional <code class="px-1 py-0.5 rounded bg-slate-100">sponsor_join</code> column.
         </p>
       </div>
 
@@ -68,7 +66,7 @@
         <aside class="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
           <div>
             <h3 class="font-bold text-slate-900">Required columns</h3>
-            <p class="mt-2 text-sm text-slate-600">The backend requires a header row with these columns:</p>
+            <p class="mt-2 text-sm text-slate-600">Your upload file should include these column headers:</p>
             <div class="mt-3 flex flex-wrap gap-2">
               <span class="px-2.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold">name</span>
               <span class="px-2.5 py-1 rounded-full bg-white border border-slate-200 text-xs font-bold">role</span>
@@ -85,7 +83,7 @@
           </div>
 
           <div>
-            <h3 class="font-bold text-slate-900">Endpoint used</h3>
+            <h3 class="font-bold text-slate-900">Upload route</h3>
             <code id="endpoint-text" class="mt-2 block rounded-xl bg-white border border-slate-200 px-3 py-2 text-xs text-slate-700 break-all"></code>
           </div>
         </aside>
@@ -97,7 +95,7 @@
         <div class="px-6 py-4 border-b border-slate-100 bg-emerald-50/60 flex items-center justify-between gap-3">
           <div>
             <h3 class="font-bold text-slate-900">Created Users</h3>
-            <p class="text-xs text-slate-500">Successful rows returned by the backend.</p>
+            <p class="text-xs text-slate-500">Rows that were added successfully.</p>
           </div>
           <span id="created-count" class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">0</span>
         </div>
@@ -120,7 +118,7 @@
         <div class="px-6 py-4 border-b border-slate-100 bg-rose-50/60 flex items-center justify-between gap-3">
           <div>
             <h3 class="font-bold text-slate-900">Skipped Rows / Errors</h3>
-            <p class="text-xs text-slate-500">The backend continues processing after row-level errors.</p>
+            <p class="text-xs text-slate-500">Rows with issues are skipped and shown here so the rest of the file can continue processing.</p>
           </div>
           <span id="error-count" class="px-3 py-1 rounded-full bg-rose-100 text-rose-700 text-xs font-bold">0</span>
         </div>
@@ -142,5 +140,9 @@
 
   <script src="../js/api.js"></script>
   <script src="../js/bulk-upload.js"></script>
+  <script src="../js/notifications.js"></script>
+  <script src="../js/driver-sponsor-context.js"></script>
+    <script src="../js/navbar.js"></script>
+  
 </body>
 </html>

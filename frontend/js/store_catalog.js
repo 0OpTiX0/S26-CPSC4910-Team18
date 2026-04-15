@@ -15,30 +15,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function initializeStoreContext() {
         try {
-            const sponsorships = await window.API.request(`/admin/get_sponsor_list?driver_id=${session.userId}`);
-            
-            if (Array.isArray(sponsorships) && sponsorships.length > 0) {
-                currentSponsorId = sponsorships[0].Sponsor_ID;
-            } else {
-                console.warn("Could not find a sponsor via /admin/get_sponsor_list. Attempting fallback...");
-                currentSponsorId = 1; 
+            const ctx = await window.GDDriverSponsors?.ensureActiveSponsor?.(session);
+            currentSponsorId = ctx?.activeSponsor?.id || null;
+
+            if (!currentSponsorId) {
+                showError('No sponsor memberships were found for this driver.');
+                return false;
             }
 
-            const savedMarketKey = `gd_market_id_sponsor_${currentSponsorId}`;
-            currentMarketId = localStorage.getItem(savedMarketKey) || 1; 
-
+            currentMarketId = window.GDDriverSponsors?.getSavedMarketIdForSponsor?.(currentSponsorId) || null;
             return true;
         } catch (error) {
             console.error("Failed to initialize store context:", error);
-            currentSponsorId = 1;
-            currentMarketId = 1;
-            return true;
+            showError('Failed to load sponsor context.');
+            return false;
         }
     }
 
     async function loadHeaderStats() {
         if (!currentSponsorId) {
-            console.error("CRITICAL: currentSponsorId is null. Cannot fetch points.");
             updateCartUI(0);
             return;
         }
@@ -46,12 +41,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const cacheBuster = Date.now();
             const points = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
-            pointsDisplay.textContent = points;
+            if (pointsDisplay) pointsDisplay.textContent = points;
 
             const cartWrapper = await window.API.request(`/cart/${session.userId}?status=Pending`);
-            
-            if (cartWrapper && cartWrapper.length > 0) {
-                updateCartUI("!");
+            if (Array.isArray(cartWrapper) && cartWrapper.length > 0) {
+                const firstItem = cartWrapper[0];
+                const cartMarketId = Number(firstItem.market_id || 0);
+                if (cartMarketId && currentMarketId && cartMarketId !== Number(currentMarketId)) {
+                    updateCartUI('!');
+                } else {
+                    updateCartUI('!');
+                }
             } else {
                 updateCartUI(0);
             }
@@ -63,13 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateCartUI(count) {
         let cart_count = document.getElementById('cart-count-badge');
-        if (!cart_count) {
-            const cartLink = document.querySelector('a[href="cart.html"]') || document.querySelector('nav');
-            cart_count = document.createElement('span');
-            cart_count.id = 'cart-count-badge';
-            cart_count.className = "absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white";
-            cartLink.appendChild(cart_count);
-        }
+        if (!cart_count) return;
         cart_count.textContent = count;
         cart_count.style.display = count !== 0 ? 'flex' : 'none'; 
     }
@@ -84,7 +78,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function loadProducts() {
-        if (!catalogContainer || !currentMarketId) return;
+        if (!catalogContainer) return;
+        if (!currentMarketId) {
+            catalogContainer.innerHTML = `
+                <div class="p-12 text-center col-span-full border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50">
+                    <p class="text-slate-500 font-medium italic">The selected sponsor does not have a market assigned yet.</p>
+                </div>`;
+            return;
+        }
         
         try {
             const products = await window.API.request(`/products/${currentMarketId}`);
@@ -92,7 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!products || products.length === 0) {
                 catalogContainer.innerHTML = `
                     <div class="p-12 text-center col-span-full border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50">
-                        <p class="text-slate-500 font-medium italic">Your sponsor hasn't added any products to this market yet.</p>
+                        <p class="text-slate-500 font-medium italic">This sponsor has not added any products to their market yet.</p>
                     </div>`;
                 return;
             }
@@ -100,7 +101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderCatalog(products);
         } catch (error) {
             console.error("Failed to load products:", error);
-            showError("Failed to load catalog. Ensure your backend is running.");
+            showError("Failed to load catalog.");
         }
     }
 
@@ -108,6 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         catalogContainer.innerHTML = '';
 
         products.forEach(product => {
+            const safeName = String(product.Product_Name || '').replace(/'/g, "\\'");
             const card = document.createElement('div');
             card.className = "bg-white rounded-3xl border border-slate-200 overflow-hidden p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col";
     
@@ -116,8 +118,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <h3 class="font-bold text-slate-900 line-clamp-2 mb-2 flex-grow" title="${product.Product_Name}">${product.Product_Name}</h3>
                 <p class="text-xs text-slate-500 line-clamp-2 mb-4" title="${product.Product_Description}">${product.Product_Description || "No description."}</p>
                 <p class="text-blue-600 font-black mb-4">${product.Product_Price} pts</p>
-                
-                <button onclick="addToCart(${product.ProductID}, '${product.Product_Name.replace(/'/g, "\\'")}')" 
+                <button onclick="addToCart(${product.ProductID}, '${safeName}')" 
                         class="w-full mt-auto bg-slate-900 text-white py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-600 transition-colors">
                     Add to Cart
                 </button>
@@ -128,6 +129,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.addToCart = async (productId, productName) => {
         try {
+            if (!currentMarketId) {
+                alert('This sponsor does not have an assigned market yet.');
+                return;
+            }
+
+            const pendingCart = await window.API.request(`/cart/${session.userId}?status=Pending`);
+            if (Array.isArray(pendingCart) && pendingCart.length > 0) {
+                const existingMarketId = Number(pendingCart[0].market_id || 0);
+                if (existingMarketId && existingMarketId !== Number(currentMarketId)) {
+                    alert('Your current cart belongs to a different sponsor. Please finish or clear that cart before switching sponsors.');
+                    return;
+                }
+            }
+
             const activeCart = await window.API.request(`/cart/${session.userId}`, {
                 method: "POST"
             });
@@ -146,28 +161,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (err) {
             console.error("Cart Error:", err);
             let msg = "An unknown error occurred.";
-            
-            if (err.detail) {
-                msg = err.detail;
-            } else if (err.data && err.data.detail) {
-                msg = err.data.detail;
-            } else if (err.message && err.message !== "API request failed") {
-                msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
-            } else if (typeof err === 'string') {
-                msg = err;
-            }
-
+            if (err.detail) msg = err.detail;
+            else if (err.data && err.data.detail) msg = err.data.detail;
+            else if (err.message && err.message !== "API request failed") msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
+            else if (typeof err === 'string') msg = err;
             alert(`Failed to add to cart: ${msg}`);
         }
     };
 
-    async function init() {
+    async function refreshForActiveSponsor() {
         const hasContext = await initializeStoreContext();
         if (hasContext) {
-            loadHeaderStats();
-            loadProducts();
+            await loadHeaderStats();
+            await loadProducts();
         }
     }
 
-    init();
+    window.addEventListener('gd:active-sponsor-changed', refreshForActiveSponsor);
+
+    refreshForActiveSponsor();
 });

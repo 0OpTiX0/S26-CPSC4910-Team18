@@ -36,6 +36,14 @@
     sessionStorage.removeItem(STORAGE_KEY);
   }
 
+  function hideEl(el) {
+    el?.classList.add("hidden");
+  }
+
+  function showEl(el) {
+    el?.classList.remove("hidden");
+  }
+
   function updateDriverViewControls(user = getStoredUser()) {
     const enabled = isDriverViewActive(user);
     document.querySelectorAll("[data-driver-view-toggle]").forEach((btn) => {
@@ -63,14 +71,14 @@
       actionsGroup.insertBefore(btn, actionsGroup.firstChild);
     }
 
-    const primaryNav = document.querySelector("header nav") || document.querySelector("nav");
-    if (primaryNav && !primaryNav.querySelector("[data-driver-view-toggle-link]")) {
+    const headerNav = document.querySelector("header nav");
+    if (headerNav && !headerNav.querySelector("[data-driver-view-toggle-link]")) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.setAttribute("data-driver-view-toggle", "1");
       btn.setAttribute("data-driver-view-toggle-link", "1");
-      btn.className = "text-sm font-semibold px-3 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all";
-      primaryNav.appendChild(btn);
+      btn.className = "text-sm font-semibold px-3 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all";
+      headerNav.appendChild(btn);
     }
 
     updateDriverViewControls(user);
@@ -99,16 +107,71 @@
     const first = body.firstElementChild;
     if (first) body.insertBefore(banner, first);
     else body.appendChild(banner);
+
     updateDriverViewControls(user);
   }
 
   function applyRolePermissions(role) {
     document.querySelectorAll(".role-specific").forEach((el) => el.classList.add("hidden"));
-    if (role) document.querySelectorAll(`.role-${role}`).forEach((el) => el.classList.remove("hidden"));
+    if (role) {
+      document.querySelectorAll(`.role-${role}`).forEach((el) => el.classList.remove("hidden"));
+    }
+  }
+
+  function configureNavbarForRole(role) {
+    const navStore = document.getElementById("nav-store");
+    const navSponsors = document.getElementById("nav-sponsors");
+    const navStatus = document.getElementById("nav-status");
+    const navSuspend = document.getElementById("nav-suspend");
+    const navModify = document.getElementById("nav-modify");
+    const navMarket = document.getElementById("nav-market");
+    const navReports = document.getElementById("nav-reports");
+    const navBulkUpload = document.getElementById("nav-bulk-upload");
+    const navAbout = document.getElementById("nav-about");
+
+    // Start by hiding everything role-sensitive
+    hideEl(navStore);
+    hideEl(navSponsors);
+    hideEl(navStatus);
+    hideEl(navSuspend);
+    hideEl(navModify);
+    hideEl(navMarket);
+    hideEl(navReports);
+    hideEl(navBulkUpload);
+
+    // About should always stay visible
+    showEl(navAbout);
+
+    // Guest or driver view
+    if (!role || role === "driver") {
+      showEl(navStore);
+      showEl(navSponsors);
+      showEl(navStatus);
+      return;
+    }
+
+    // Sponsor / sponsor_user
+    if (role === "sponsor" || role === "sponsor_user") {
+      showEl(navSuspend);
+      showEl(navModify);
+      showEl(navMarket);
+      showEl(navReports);
+      showEl(navBulkUpload);
+      return;
+    }
+
+    // Admin
+    if (role === "admin") {
+      showEl(navReports);
+      showEl(navBulkUpload);
+      return;
+    }
   }
 
   function rewriteStatusLink(role) {
-    const statusLink = document.querySelector('a[href="view-status.html"], a[href="sponsor_applications.html"]');
+    const statusLink = document.getElementById("nav-status")
+      || document.querySelector('a[href="view-status.html"], a[href="sponsor_applications.html"]');
+
     if (!statusLink) return;
 
     if (role === "sponsor" || role === "sponsor_user") {
@@ -124,8 +187,16 @@
 
   async function updatePointsDisplay(user) {
     if (!user?.userId || !window.CONFIG) return;
+
     try {
-      const response = await fetch(`${CONFIG.API_BASE_URL}/points/${user.userId}`);
+      let sponsorId = window.GDDriverSponsors?.getActiveSponsorId?.() || null;
+      if (!sponsorId && window.GDDriverSponsors?.ensureActiveSponsor) {
+        const ctx = await window.GDDriverSponsors.ensureActiveSponsor(user);
+        sponsorId = ctx?.activeSponsor?.id || null;
+      }
+      if (!sponsorId) return;
+
+      const response = await fetch(`${CONFIG.API_BASE_URL}/points/${user.userId}?sponsor_id=${encodeURIComponent(sponsorId)}`);
       if (!response.ok) return;
 
       const data = await response.json();
@@ -141,6 +212,28 @@
     }
   }
 
+  async function mountDriverSponsorSwitcher(user) {
+    const baseRole = getBaseRole(user);
+    if (baseRole !== "driver") return;
+    if (!window.GDDriverSponsors?.renderSelector) return;
+
+    let container = document.getElementById("gd-driver-sponsor-switcher-bar");
+    if (!container) {
+      const chrome = document.querySelector("header, nav");
+      if (!chrome) return;
+      container = document.createElement("div");
+      container.id = "gd-driver-sponsor-switcher-bar";
+      container.className = "max-w-6xl mx-auto px-6 py-4";
+      chrome.insertAdjacentElement("afterend", container);
+    }
+
+    await window.GDDriverSponsors.renderSelector(container, {
+      user,
+      label: "Active Sponsor",
+      helpText: "Switch sponsors to view the correct market, balance, and rewards context."
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     const profileBtn = document.getElementById("profile-btn");
     const dropdown = document.getElementById("profile-dropdown");
@@ -151,6 +244,7 @@
     if (!storedUser) {
       navGuest?.classList.remove("hidden");
       navUser?.classList.add("hidden");
+      configureNavbarForRole("");
       return;
     }
 
@@ -160,7 +254,7 @@
 
     const name = storedUser.name || "";
     const initials = name.trim()
-      ? name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || "").join("")
+      ? name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || "").join("")
       : "U";
 
     if (profileBtn) profileBtn.textContent = initials;
@@ -171,7 +265,9 @@
     if (userEmailEl) userEmailEl.textContent = storedUser.email || "";
 
     const effectiveRole = getEffectiveRole(storedUser);
+
     applyRolePermissions(effectiveRole);
+    configureNavbarForRole(effectiveRole);
     rewriteStatusLink(effectiveRole);
     ensureDriverViewButton(storedUser);
     ensureDriverViewBanner(storedUser);
@@ -181,13 +277,18 @@
     }
 
     if (effectiveRole === "driver") {
+      mountDriverSponsorSwitcher(storedUser);
       const points = storedUser.points || 0;
       const pointsElement = document.getElementById("user-points");
       const progressElement = document.getElementById("points-progress");
+
       if (pointsElement) pointsElement.textContent = Number(points).toLocaleString();
+
       if (progressElement) {
         const percentage = Math.min((Number(points) / 1000) * 100, 100);
-        setTimeout(() => (progressElement.style.width = `${percentage}%`), 200);
+        setTimeout(() => {
+          progressElement.style.width = `${percentage}%`;
+        }, 200);
       }
 
       if (getBaseRole(storedUser) === "driver") {
@@ -198,6 +299,12 @@
         checkConfigAndLoad();
       }
     }
+
+    window.addEventListener("gd:active-sponsor-changed", () => {
+      if (effectiveRole === "driver") {
+        updatePointsDisplay(storedUser);
+      }
+    });
 
     document.addEventListener("click", (e) => {
       const toggle = e.target.closest("[data-driver-view-toggle]");
@@ -215,7 +322,9 @@
     });
 
     window.addEventListener("click", () => {
-      if (dropdown && !dropdown.classList.contains("hidden")) dropdown.classList.add("hidden");
+      if (dropdown && !dropdown.classList.contains("hidden")) {
+        dropdown.classList.add("hidden");
+      }
     });
 
     document.getElementById("logout-btn")?.addEventListener("click", () => {

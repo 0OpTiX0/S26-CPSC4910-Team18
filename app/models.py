@@ -200,7 +200,7 @@ class AppDeleteReq(BaseModel):
 
 class SponsorCreate(BaseModel):
     name: str
-    market_id: int
+    market_id: int | None = None
     description: str
     email: str
     phone: str

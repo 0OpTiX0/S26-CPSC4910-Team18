@@ -1151,7 +1151,7 @@ def submitApplication(payload: ApplicationRequest, session: Session = Depends(ge
     if not emailSponsor(user.User_Email, sponsor.Sponsor_Email):
         print("There was a problem sending the application")
 
-    existing = session.exec(select(Driver_Application).where(Driver_Application.Applicant_Email == payload.appEmail)).first()
+    existing = session.exec(select(Driver_Application).where(Driver_Application.Applicant_Email == payload.appEmail, Driver_Application.Sponsor_ID == sponsor.Sponsor_ID)).first()
     if existing:
         if existing.Applicant_Status == "Rejected":
             session.delete(existing)
@@ -1337,7 +1337,7 @@ def deleteApp(payload: AppDeleteReq, session: Session = Depends(getSession)):
 def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)):
     
     stmt = select(Sponsor).where(Sponsor.Sponsor_Name == payload.name)
-    existingSponsor = session.exec(stmt)
+    existingSponsor = session.exec(stmt).first()
     
     if existingSponsor:
         raise HTTPException(status_code= 400, detail="This sponsor already exists!")
@@ -2291,14 +2291,23 @@ def getCart(driver_id:int, status: Optional[str] = Query(None), session:Session 
     results = session.exec(items_stmt).all()
     
     formatted_cart = []
+    market_ids = [product.MarketID for _, product in results if product.MarketID is not None]
+    markets_by_id = {}
+    if market_ids:
+        markets = session.exec(select(Market).where(Market.Market_ID.in_(list(set(market_ids))))).all()
+        markets_by_id = {market.Market_ID: market for market in markets if market.Market_ID is not None}
+
     for item, product in results:
+        market = markets_by_id.get(product.MarketID)
         formatted_cart.append({
             "CartID": cart.CartID, 
             "Cart_Item_ID": item.Cart_Item_ID,
             "product_name": product.Product_Name,
             "price": item.Prod_Price,
             "qty": item.Prod_Qty,
-            "image": product.Product_Image
+            "image": product.Product_Image,
+            "market_id": product.MarketID,
+            "sponsor_id": market.Market_Sponsor if market else None
         })
     
     return formatted_cart

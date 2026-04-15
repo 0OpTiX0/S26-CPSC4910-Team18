@@ -13,7 +13,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    let cartData = [];
     let currentBalance = 0;
     let currentSponsorId = null;
     let currentMarketId = null;
@@ -21,73 +20,77 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function initializeContext() {
         try {
-            const sponsorships = await window.API.request(`/admin/get_sponsor_list?driver_id=${session.userId}`);
-            
-            if (Array.isArray(sponsorships) && sponsorships.length > 0) {
-                currentSponsorId = sponsorships[0].Sponsor_ID;
-            } else {
-                console.warn("Could not find a sponsor via /admin/get_sponsor_list. Attempting fallback...");
-                currentSponsorId = 1; 
-            }
-
-            const savedMarketKey = `gd_market_id_sponsor_${currentSponsorId}`;
-            currentMarketId = localStorage.getItem(savedMarketKey) || 1; 
+            const ctx = await window.GDDriverSponsors?.ensureActiveSponsor?.(session);
+            currentSponsorId = ctx?.activeSponsor?.id || null;
+            currentMarketId = window.GDDriverSponsors?.getSavedMarketIdForSponsor?.(currentSponsorId) || null;
             return true;
         } catch (error) {
             console.error("Failed to load context:", error);
-            currentSponsorId = 1;
-            currentMarketId = 1;
-            return true;
+            return false;
         }
     }
 
+    function showBanner(message, kind = 'slate') {
+        const existing = document.getElementById('cart-context-banner');
+        if (existing) existing.remove();
+        const banner = document.createElement('div');
+        banner.id = 'cart-context-banner';
+        banner.className = `mb-5 rounded-2xl border px-5 py-4 text-sm ${kind === 'amber' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-700'}`;
+        banner.innerHTML = message;
+        cartContainer.before(banner);
+    }
 
     async function loadCart() {
         try {
+            const pending = await window.API.request(`/cart/${session.userId}?status=Pending`);
+            const items = Array.isArray(pending) ? pending : [];
+
+            if (items.length > 0) {
+                const cartSponsorId = Number(items[0]?.sponsor_id || 0);
+                const cartMarketId = Number(items[0]?.market_id || 0);
+                if (cartSponsorId) {
+                    currentSponsorId = cartSponsorId;
+                    window.GDDriverSponsors?.setActiveSponsorId?.(cartSponsorId, { silent: true });
+                }
+                if (cartMarketId) {
+                    currentMarketId = cartMarketId;
+                }
+            }
+
             if (!currentSponsorId) {
-                console.error("CRITICAL: currentSponsorId is null. Cannot fetch points.");
                 showEmptyCart();
                 return;
             }
 
             const cacheBuster = Date.now();
             currentBalance = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
-            
             const pointsDisplay = document.getElementById('display-points');
             if (pointsDisplay) pointsDisplay.textContent = `${currentBalance} pts`;
 
-            cartData = await window.API.request(`/cart/${session.userId}?status=Pending`);
-
-            if (!cartData || cartData.length === 0) {
+            if (!items.length) {
                 showEmptyCart();
                 return;
             }
 
-            const items = Array.isArray(cartData) ? cartData : [];
-            if (items.length === 0 && cartData.CartID) {
-               showEmptyCart();
-               return;
-            }
-
-            activeCartId = items[0]?.CartID || cartData[0]?.CartID || cartData.CartID;
+            activeCartId = items[0]?.CartID || items[0]?.cart_id || null;
 
             cartContainer.innerHTML = '';
             if (driverPreview) {
-                cartContainer.insertAdjacentHTML('beforeend', `
-                    <div class="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
-                        <strong>Preview cart:</strong> sponsor users can review the cart flow here, but checkout is disabled in Driver View.
-                    </div>
-                `);
+                showBanner('<strong>Preview cart:</strong> sponsor users can review the cart flow here, but checkout is disabled in Driver View.', 'amber');
+            } else {
+                const cachedSponsors = window.GDDriverSponsors?.getCachedSponsors?.() || [];
+                const sponsor = cachedSponsors.find((item) => Number(item.id) === Number(currentSponsorId));
+                if (sponsor) {
+                    showBanner(`This pending cart is currently using <strong>${sponsor.name}</strong>. Switching sponsors in the store will not move these items.`);
+                }
             }
-            let total = 0;
 
+            let total = 0;
             items.forEach(item => {
                 const itemName = item.product_name || item.Product_Name || "Unknown Item";
                 const itemPrice = parseInt(item.price || item.Prod_Price || 0, 10);
                 const itemQty = parseInt(item.qty || item.Prod_Qty || 1, 10);
-                
-                const itemId = item.Cart_Item_ID || item.cart_item_id || item.CartItemID || item.id; 
-
+                const itemId = item.Cart_Item_ID || item.cart_item_id || item.CartItemID || item.id;
                 total += (itemPrice * itemQty);
 
                 const itemRow = document.createElement('div');
@@ -128,6 +131,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function showEmptyCart() {
+        const existing = document.getElementById('cart-context-banner');
+        if (existing) existing.remove();
         cartContainer.innerHTML = `<div class="p-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
             <p class="text-slate-400 font-medium italic">Your cart is empty.</p>
         </div>`;
@@ -146,12 +151,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 method: "PATCH",
                 body: {
                     market_id: parseInt(currentMarketId),
-                    product_id: 0, 
-                    driver_id: session.userId 
+                    product_id: 0,
+                    driver_id: session.userId
                 }
             });
 
-            alert("Order Successful! Your rewards are on the way.");
+            alert("Order successful! Your rewards are on the way.");
             window.location.href = "store_catalog.html";
         } catch (err) {
             const msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
@@ -161,12 +166,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    window.removeItem = async (cartId, cartItemId) => {
+    window.removeItem = async (_cartId, cartItemId) => {
         try {
             await window.API.request(`/cart/${session.userId}/${cartItemId}`, {
                 method: "DELETE"
             });
-            
             loadCart();
         } catch (error) {
             console.error("Failed to remove item", error);
@@ -174,12 +178,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    async function init() {
-        const hasContext = await initializeContext();
-        if (hasContext) {
-            loadCart();
-        }
-    }
+    window.addEventListener('gd:active-sponsor-changed', async () => {
+        await initializeContext();
+        loadCart();
+    });
 
-    init();
+    const hasContext = await initializeContext();
+    if (hasContext) {
+        loadCart();
+    }
 });
