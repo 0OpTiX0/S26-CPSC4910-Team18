@@ -1,7 +1,9 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const pointsDisplay = document.getElementById('display-points');
     const catalogContainer = document.getElementById('catalog-container');
-    const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user"));
+    const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user") || 'null');
+    const effectiveRole = window.GDUserView?.getEffectiveRole(session) || String(session?.role || '').toLowerCase();
+    const driverPreview = !!window.GDUserView?.isDriverViewActive?.(session);
 
     if (!session) {
         window.location.href = "login.html";
@@ -26,47 +28,43 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function initializeStoreContext() {
         try {
-            const sponsorships = await window.API.request(`/admin/get_sponsor_list?driver_id=${session.userId}`);
+            const ctx = await window.GDDriverSponsors?.ensureActiveSponsor?.(session);
+            currentSponsorId = ctx?.activeSponsor?.id || null;
 
-            if (Array.isArray(sponsorships) && sponsorships.length > 0) {
-                currentSponsorId = sponsorships[0].Sponsor_ID;
-            } else {
-                console.warn("Could not find a sponsor via /admin/get_sponsor_list. Attempting fallback...");
-                currentSponsorId = 1;
+            if (!currentSponsorId) {
+                showError('No sponsor memberships were found for this driver.');
+                return false;
             }
 
-            const savedMarketKey = `gd_market_id_sponsor_${currentSponsorId}`;
-            currentMarketId = localStorage.getItem(savedMarketKey) || 1;
-
+            currentMarketId = window.GDDriverSponsors?.getSavedMarketIdForSponsor?.(currentSponsorId) || null;
             return true;
         } catch (error) {
             console.error("Failed to initialize store context:", error);
-            currentSponsorId = 1;
-            currentMarketId = 1;
-            return true;
+            showError('Failed to load sponsor context.');
+            return false;
         }
     }
 
     async function loadHeaderStats() {
         if (!currentSponsorId) {
-            console.error("CRITICAL: currentSponsorId is null. Cannot fetch points.");
             updateCartUI(0);
             return;
         }
 
         try {
             const cacheBuster = Date.now();
-            const backendPoints = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
-            const storedBalance = getStoredBalance();
-            const points = storedBalance !== null ? storedBalance : Number(backendPoints || 0);
-
-            setStoredBalance(points);
-            pointsDisplay.textContent = `${points} pts`;
+            const points = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
+            if (pointsDisplay) pointsDisplay.textContent = points;
 
             const cartWrapper = await window.API.request(`/cart/${session.userId}?status=Pending`);
-
-            if (cartWrapper && cartWrapper.length > 0) {
-                updateCartUI("!");
+            if (Array.isArray(cartWrapper) && cartWrapper.length > 0) {
+                const firstItem = cartWrapper[0];
+                const cartMarketId = Number(firstItem.market_id || 0);
+                if (cartMarketId && currentMarketId && cartMarketId !== Number(currentMarketId)) {
+                    updateCartUI('!');
+                } else {
+                    updateCartUI('!');
+                }
             } else {
                 updateCartUI(0);
             }
@@ -78,13 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function updateCartUI(count) {
         let cart_count = document.getElementById('cart-count-badge');
-        if (!cart_count) {
-            const cartLink = document.querySelector('a[href="cart.html"]') || document.querySelector('nav');
-            cart_count = document.createElement('span');
-            cart_count.id = 'cart-count-badge';
-            cart_count.className = "absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-full border-2 border-white";
-            cartLink.appendChild(cart_count);
-        }
+        if (!cart_count) return;
         cart_count.textContent = count;
         cart_count.style.display = count !== 0 ? 'flex' : 'none';
     }
@@ -99,15 +91,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function loadProducts() {
-        if (!catalogContainer || !currentMarketId) return;
-
+        if (!catalogContainer) return;
+        if (!currentMarketId) {
+            catalogContainer.innerHTML = `
+                <div class="p-12 text-center col-span-full border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50">
+                    <p class="text-slate-500 font-medium italic">The selected sponsor does not have a market assigned yet.</p>
+                </div>`;
+            return;
+        }
+        
         try {
             const products = await window.API.request(`/products/${currentMarketId}`);
 
             if (!products || products.length === 0) {
                 catalogContainer.innerHTML = `
                     <div class="p-12 text-center col-span-full border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50">
-                        <p class="text-slate-500 font-medium italic">Your sponsor hasn't added any products to this market yet.</p>
+                        <p class="text-slate-500 font-medium italic">This sponsor has not added any products to their market yet.</p>
                     </div>`;
                 return;
             }
@@ -115,7 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderCatalog(products);
         } catch (error) {
             console.error("Failed to load products:", error);
-            showError("Failed to load catalog. Ensure your backend is running.");
+            showError("Failed to load catalog.");
         }
     }
 
@@ -144,6 +143,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     window.addToCart = async (productId, productName) => {
         try {
+            if (!currentMarketId) {
+                alert('This sponsor does not have an assigned market yet.');
+                return;
+            }
+
+            const pendingCart = await window.API.request(`/cart/${session.userId}?status=Pending`);
+            if (Array.isArray(pendingCart) && pendingCart.length > 0) {
+                const existingMarketId = Number(pendingCart[0].market_id || 0);
+                if (existingMarketId && existingMarketId !== Number(currentMarketId)) {
+                    alert('Your current cart belongs to a different sponsor. Please finish or clear that cart before switching sponsors.');
+                    return;
+                }
+            }
+
             const activeCart = await window.API.request(`/cart/${session.userId}`, {
                 method: "POST"
             });
@@ -176,7 +189,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
-    async function init() {
+    async function refreshForActiveSponsor() {
         const hasContext = await initializeStoreContext();
         if (hasContext) {
             await loadHeaderStats();
@@ -184,5 +197,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    init();
+    window.addEventListener('gd:active-sponsor-changed', refreshForActiveSponsor);
+
+    refreshForActiveSponsor();
 });

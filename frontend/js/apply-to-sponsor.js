@@ -17,8 +17,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 window.location.href = "login.html";
                 return;
             }
-            if (user.role !== "driver") {
+            const effectiveRole = window.GDUserView?.getEffectiveRole(user) || user.role;
+            const driverViewActive = !!window.GDUserView?.isDriverViewActive?.(user);
+            if (effectiveRole !== "driver") {
                 alert("Only drivers can apply for sponsorship.");
+                return;
+            }
+            if (driverViewActive) {
+                alert("Driver View is for preview only. Sponsor users cannot submit driver applications.");
                 return;
             }
 

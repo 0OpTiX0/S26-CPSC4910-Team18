@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const listContainer = document.getElementById('driverListContainer');
     const countPill = document.getElementById('driverCount');
     const session = JSON.parse(sessionStorage.getItem('gd_user') || 'null');
+    const allowedDriverIds = new Set();
 
     if (!session) {
         window.location.href = 'login.html';
@@ -80,6 +81,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
             }).filter((driver) => Number.isFinite(driver.driverId));
 
+            allowedDriverIds.clear();
+            mergedDrivers.forEach((driver) => allowedDriverIds.add(String(driver.driverId)));
+
             listContainer.innerHTML = '';
             countPill.textContent = `${mergedDrivers.length} Drivers`;
 
@@ -133,6 +137,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             listContainer.querySelectorAll('.adjust-btn').forEach((button) => {
                 button.addEventListener('click', () => {
                     const driverId = Number(button.dataset.driverId);
+                    if (!allowedDriverIds.has(String(driverId))) {
+                        alert('You can only modify drivers linked to your sponsor.');
+                        return;
+                    }
                     const sponsorIdValue = Number(button.dataset.sponsorId);
                     const driverEmail = button.dataset.driverEmail || '';
                     const driverName = button.dataset.driverName || driverEmail;
@@ -144,6 +152,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 button.addEventListener('click', () => {
                     const sponsorIdValue = Number(button.dataset.sponsorId);
                     const driverId = Number(button.dataset.driverId);
+                    if (!allowedDriverIds.has(String(driverId))) {
+                        alert('You can only modify drivers linked to your sponsor.');
+                        return;
+                    }
                     const driverEmail = button.dataset.driverEmail || `Driver #${driverId}`;
                     window.dropDriver(sponsorIdValue, driverId, driverEmail);
                 });
@@ -312,6 +324,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     window.dropDriver = async (sponsorId, driverId, driverEmail) => {
+        if (!allowedDriverIds.has(String(driverId))) {
+            alert('You can only modify drivers linked to your sponsor.');
+            return;
+        }
         const reason = prompt(`Drop ${driverEmail} from your sponsor program?
 Optional: enter a reason (or leave blank):`, '');
         if (reason === null) return;

@@ -31,7 +31,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 @app.get("/health")
 def health():
     return {"ok": True}
@@ -1152,7 +1151,7 @@ def submitApplication(payload: ApplicationRequest, session: Session = Depends(ge
     if not emailSponsor(user.User_Email, sponsor.Sponsor_Email):
         print("There was a problem sending the application")
 
-    existing = session.exec(select(Driver_Application).where(Driver_Application.Applicant_Email == payload.appEmail)).first()
+    existing = session.exec(select(Driver_Application).where(Driver_Application.Applicant_Email == payload.appEmail, Driver_Application.Sponsor_ID == sponsor.Sponsor_ID)).first()
     if existing:
         if existing.Applicant_Status == "Rejected":
             session.delete(existing)
@@ -1338,7 +1337,7 @@ def deleteApp(payload: AppDeleteReq, session: Session = Depends(getSession)):
 def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)):
     
     stmt = select(Sponsor).where(Sponsor.Sponsor_Name == payload.name)
-    existingSponsor = session.exec(stmt)
+    existingSponsor = session.exec(stmt).first()
     
     if existingSponsor:
         raise HTTPException(status_code= 400, detail="This sponsor already exists!")
@@ -2292,14 +2291,23 @@ def getCart(driver_id:int, status: Optional[str] = Query(None), session:Session 
     results = session.exec(items_stmt).all()
     
     formatted_cart = []
+    market_ids = [product.MarketID for _, product in results if product.MarketID is not None]
+    markets_by_id = {}
+    if market_ids:
+        markets = session.exec(select(Market).where(Market.Market_ID.in_(list(set(market_ids))))).all()
+        markets_by_id = {market.Market_ID: market for market in markets if market.Market_ID is not None}
+
     for item, product in results:
+        market = markets_by_id.get(product.MarketID)
         formatted_cart.append({
             "CartID": cart.CartID, 
             "Cart_Item_ID": item.Cart_Item_ID,
             "product_name": product.Product_Name,
             "price": item.Prod_Price,
             "qty": item.Prod_Qty,
-            "image": product.Product_Image
+            "image": product.Product_Image,
+            "market_id": product.MarketID,
+            "sponsor_id": market.Market_Sponsor if market else None
         })
     
     return formatted_cart
@@ -2924,12 +2932,20 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
         raise HTTPException(status_code=404, detail="The cart is empty")
 
     product_ids: list[int] = []
+    cart_qty_by_item: dict[int, int] = {}
     for cart_item in cart_items:
         if cart_item.ProdID is None:
             raise HTTPException(status_code=400, detail="Cart contains an invalid item")
-        if cart_item.Prod_Qty <= 0:
+        
+        try:
+            qty = int(cart_item.Prod_Qty)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Cart contains an item with invalid quantity")
+        
+        if qty <= 0:
             raise HTTPException(status_code=400, detail="Cart contains an item with invalid quantity")
         product_ids.append(cart_item.ProdID)
+        cart_qty_by_item[cart_item.ProdID] = qty
 
     unique_product_ids = set(product_ids)
 
@@ -2949,14 +2965,15 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     for cart_item in cart_items:
         if cart_item.ProdID is None:
             raise HTTPException(status_code=400, detail="Cart contains an invalid item")
+        qty = cart_qty_by_item[cart_item.ProdID]
         product = products_by_id[cart_item.ProdID]
-        if product.Product_Qty < cart_item.Prod_Qty:
+        if product.Product_Qty < qty:
             raise HTTPException(
                 status_code=400,
                 detail=f"Not enough stock for {product.Product_Name}",
             )
-        total_cost += product.Product_Price * cart_item.Prod_Qty
-        total_items += cart_item.Prod_Qty
+        total_cost += product.Product_Price * qty
+        total_items += qty
 
     if customer.User_Points < total_cost:
         raise HTTPException(status_code=400, detail="User cannot afford cart total. Please remove items and try again")
@@ -2964,8 +2981,9 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     for cart_item in cart_items:
         if cart_item.ProdID is None:
             raise HTTPException(status_code=400, detail="Cart contains an invalid item")
+        qty = cart_qty_by_item[cart_item.ProdID]
         product = products_by_id[cart_item.ProdID]
-        product.Product_Qty -= cart_item.Prod_Qty
+        product.Product_Qty -= qty
         session.add(product)
 
     customer.User_Points -= total_cost
