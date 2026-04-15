@@ -2886,138 +2886,95 @@ def getAllProducts(market_id: int, product_name: Optional[str] = Query(None), se
     
     return products
  
- 
 @app.patch("/products/purchase")
-def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
-    # DONE: If "real-time" price/availability is a hard requirement, revalidate imported product data against the source API here.
-    # TODO: Add cancellation/update/refund rules if orders are meant to be reversible after checkout.
-    stmt = select(Market).where(Market.Market_ID == payload.market_id)
-    market = session.exec(stmt).first()
-    
-    if not market:
-        raise HTTPException(status_code=404, detail="Market does not exist")
-    
-    stmt = select(Sponsorship).where(Sponsorship.Driver_User_ID == payload.driver_id, Sponsorship.Sponsor_ID == market.Market_Sponsor)
-    customer = session.exec(stmt).first()
-    if not customer:
-        raise HTTPException(status_code=404, detail="User is not authorized to shop in this market")
-    
-    
-    stmt = select(Driver_User).where(Driver_User.Registered_Driver == payload.driver_id)
-    driver = session.exec(stmt).first()
-    
+def purchaseProduct(payload: Purchase, session: Session = Depends(getSession)):
+
+    driver = session.exec(
+        select(Driver_User).where(Driver_User.Registered_Driver == payload.driver_id)
+    ).first()
+
     if not driver:
-        raise HTTPException(status_code=404, detail="Driver not found!")
-    
-    
-    stmt = select(Sponsor).where(Sponsor.Sponsor_ID == customer.Sponsor_ID)
-    sponsor = session.exec(stmt).first()
-    
-    if not sponsor:
-        raise HTTPException(status_code=404, detail="Sponsor not found")
-    
-    
-    stmt = select(Cart).where(Cart.DriverID == driver.Registered_Driver)
-    
-    cart = session.exec(stmt).first()
-    
-    if not cart:
-        raise HTTPException(status_code=404, detail="The cart is empty")
-    
-    if cart.CartID is None:
-        raise HTTPException(status_code=500, detail="Cart is missing an ID")
+        raise HTTPException(status_code=404, detail="Driver not found")
 
-    cart_items = session.exec(select(CartItem).where(CartItem.CartID == cart.CartID)).all()
-    if not cart_items:
-        raise HTTPException(status_code=404, detail="The cart is empty")
+    market = session.exec(
+        select(Market).where(Market.Market_ID == payload.market_id)
+    ).first()
 
-    product_ids: list[int] = []
-    cart_qty_by_item: dict[int, int] = {}
-    for cart_item in cart_items:
-        if cart_item.ProdID is None:
-            raise HTTPException(status_code=400, detail="Cart contains an invalid item")
-        
-        try:
-            qty = int(cart_item.Prod_Qty)
-        except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="Cart contains an item with invalid quantity")
-        
-        if qty <= 0:
-            raise HTTPException(status_code=400, detail="Cart contains an item with invalid quantity")
-        product_ids.append(cart_item.ProdID)
-        cart_qty_by_item[cart_item.ProdID] = qty
+    if not market:
+        raise HTTPException(status_code=404, detail="Market not found")
 
-    unique_product_ids = set(product_ids)
+    sponsor_id = market.Market_Sponsor
 
-    products = session.exec(
-        select(Product).where(
-            Product.ProductID.in_(list(unique_product_ids)),
-            Product.MarketID == payload.market_id,
+    sponsorship = session.exec(
+        select(Sponsorship).where(
+            Sponsorship.Driver_User_ID == payload.driver_id,
+            Sponsorship.Sponsor_ID == sponsor_id
         )
-    ).all()
-    products_by_id = {product.ProductID: product for product in products if product.ProductID is not None}
+    ).first()
 
-    if len(products_by_id) != len(unique_product_ids):
-        raise HTTPException(status_code=400, detail="Cart has products that are unavailable in this market")
+    if not sponsorship:
+        raise HTTPException(status_code=403, detail="Driver is not authorized for this sponsor")
+
+    cart = session.exec(
+        select(Cart)
+        .where(
+            Cart.DriverID == payload.driver_id,
+            Cart.Status == "Pending"
+        )
+        .order_by(desc(Cart.CartID))
+    ).first()
+
+    if not cart:
+        raise HTTPException(status_code=404, detail="No pending cart found")
+
+    cart_items = session.exec(
+        select(CartItem).where(CartItem.CartID == cart.CartID)
+    ).all()
+
+    if not cart_items:
+        raise HTTPException(status_code=400, detail="Cart is empty")
 
     total_cost = 0
-    total_items = 0
-    for cart_item in cart_items:
-        if cart_item.ProdID is None:
-            raise HTTPException(status_code=400, detail="Cart contains an invalid item")
-        qty = cart_qty_by_item[cart_item.ProdID]
-        product = products_by_id[cart_item.ProdID]
-        if product.Product_Qty < qty:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Not enough stock for {product.Product_Name}",
-            )
-        total_cost += product.Product_Price * qty
-        total_items += qty
 
-    if customer.User_Points < total_cost:
-        raise HTTPException(status_code=400, detail="User cannot afford cart total. Please remove items and try again")
+    for item in cart_items:
+        product = session.exec(
+            select(Product).where(Product.ProductID == item.ProdID)
+        ).first()
 
-    for cart_item in cart_items:
-        if cart_item.ProdID is None:
-            raise HTTPException(status_code=400, detail="Cart contains an invalid item")
-        qty = cart_qty_by_item[cart_item.ProdID]
-        product = products_by_id[cart_item.ProdID]
-        product.Product_Qty -= qty
-        session.add(product)
+        if not product:
+            raise HTTPException(status_code=404, detail=f"Product {item.ProdID} not found")
 
-    customer.User_Points -= total_cost
+        price = int(product.Product_Price or 0)
+        qty = int(item.Prod_Qty or 1)
+
+        total_cost += price * qty
+
+    if sponsorship.User_Points < total_cost:
+        raise HTTPException(status_code=400, detail="Insufficient points")
+
+    sponsorship.User_Points -= total_cost
+    session.add(sponsorship)
+
     cart.Status = "Purchase Complete"
-    cart.Cart_Total = 0
     cart.Checked_Out_At = datetime.now(timezone.utc)
-    session.add(customer)
     session.add(cart)
 
-    transaction_log = Point_Transaction(
-        Driver_User_ID=customer.Driver_User_ID,
-        Driver_Name= driver.Driver_Name,
-        Sponsor_Name= sponsor.Sponsor_Name,
-        Points_Change= str(0 - total_cost),
-        Points_After_Change= customer.User_Points,
-        Reason_For_Change= "User Purchase - Cart Checkout",
-        Created_At= datetime.now(timezone.utc)
+    transaction = Point_Transaction(
+        Driver_User_ID=payload.driver_id,
+        Points_Change=-total_cost,
+        Reason_For_Change="User Purchase - Cart Checkout",
+        Created_At=datetime.now(timezone.utc)
     )
-    
-    session.add(transaction_log)
+
+    session.add(transaction)
+
     session.commit()
-    session.refresh(customer)
-    session.refresh(transaction_log)
-    session.refresh(cart)
 
-    create_notification(
-        session,
-        payload.driver_id,
-        f"Purchase complete: {total_items} item(s) for {total_cost} points. Remaining points: {customer.User_Points}",
-        "Purchase"
-    )
-
-    return {"message": "Purchase completed successfully"}
-    
+    return {
+        "message": "Purchase successful",
+        "points_spent": total_cost,
+        "remaining_points": sponsorship.User_Points
+    }    
 
 @app.patch("/products/purchase/{cart_id}/cancel")
 def cancelPurchaseOrder(
