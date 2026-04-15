@@ -2932,12 +2932,20 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
         raise HTTPException(status_code=404, detail="The cart is empty")
 
     product_ids: list[int] = []
+    cart_qty_by_item: dict[int, int] = {}
     for cart_item in cart_items:
         if cart_item.ProdID is None:
             raise HTTPException(status_code=400, detail="Cart contains an invalid item")
-        if cart_item.Prod_Qty <= 0:
+        
+        try:
+            qty = int(cart_item.Prod_Qty)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Cart contains an item with invalid quantity")
+        
+        if qty <= 0:
             raise HTTPException(status_code=400, detail="Cart contains an item with invalid quantity")
         product_ids.append(cart_item.ProdID)
+        cart_qty_by_item[cart_item.ProdID] = qty
 
     unique_product_ids = set(product_ids)
 
@@ -2957,14 +2965,15 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     for cart_item in cart_items:
         if cart_item.ProdID is None:
             raise HTTPException(status_code=400, detail="Cart contains an invalid item")
+        qty = cart_qty_by_item[cart_item.ProdID]
         product = products_by_id[cart_item.ProdID]
-        if product.Product_Qty < cart_item.Prod_Qty:
+        if product.Product_Qty < qty:
             raise HTTPException(
                 status_code=400,
                 detail=f"Not enough stock for {product.Product_Name}",
             )
-        total_cost += product.Product_Price * cart_item.Prod_Qty
-        total_items += cart_item.Prod_Qty
+        total_cost += product.Product_Price * qty
+        total_items += qty
 
     if customer.User_Points < total_cost:
         raise HTTPException(status_code=400, detail="User cannot afford cart total. Please remove items and try again")
@@ -2972,8 +2981,9 @@ def purchaseProduct(payload: Purchase, session: Session=Depends(getSession)):
     for cart_item in cart_items:
         if cart_item.ProdID is None:
             raise HTTPException(status_code=400, detail="Cart contains an invalid item")
+        qty = cart_qty_by_item[cart_item.ProdID]
         product = products_by_id[cart_item.ProdID]
-        product.Product_Qty -= cart_item.Prod_Qty
+        product.Product_Qty -= qty
         session.add(product)
 
     customer.User_Points -= total_cost
