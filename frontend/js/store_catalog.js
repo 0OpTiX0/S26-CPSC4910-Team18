@@ -13,6 +13,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentSponsorId = null;
     let currentMarketId = null;
 
+    function getPointsStorageKey() {
+        return `gd_points_balance_${session.userId}_${currentSponsorId}`;
+    }
+
+    function getStoredBalance() {
+        const raw = localStorage.getItem(getPointsStorageKey());
+        return raw === null ? null : Number(raw);
+    }
+
+    function setStoredBalance(value) {
+        localStorage.setItem(getPointsStorageKey(), String(Number(value) || 0));
+    }
+
     async function initializeStoreContext() {
         try {
             const ctx = await window.GDDriverSponsors?.ensureActiveSponsor?.(session);
@@ -65,7 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let cart_count = document.getElementById('cart-count-badge');
         if (!cart_count) return;
         cart_count.textContent = count;
-        cart_count.style.display = count !== 0 ? 'flex' : 'none'; 
+        cart_count.style.display = count !== 0 ? 'flex' : 'none';
     }
 
     function showError(message) {
@@ -109,16 +122,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         catalogContainer.innerHTML = '';
 
         products.forEach(product => {
-            const safeName = String(product.Product_Name || '').replace(/'/g, "\\'");
+            const safeName = String(product.Product_Name || 'Product').replace(/'/g, "\\'");
             const card = document.createElement('div');
             card.className = "bg-white rounded-3xl border border-slate-200 overflow-hidden p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col";
-    
+
             card.innerHTML = `
                 <img src="${product.Product_Image || 'https://via.placeholder.com/600'}" alt="Product Image" class="w-full h-40 object-cover rounded-2xl mb-4">
                 <h3 class="font-bold text-slate-900 line-clamp-2 mb-2 flex-grow" title="${product.Product_Name}">${product.Product_Name}</h3>
                 <p class="text-xs text-slate-500 line-clamp-2 mb-4" title="${product.Product_Description}">${product.Product_Description || "No description."}</p>
                 <p class="text-blue-600 font-black mb-4">${product.Product_Price} pts</p>
-                <button onclick="addToCart(${product.ProductID}, '${safeName}')" 
+
+                <button onclick="addToCart(${product.ProductID}, '${safeName}')"
                         class="w-full mt-auto bg-slate-900 text-white py-3 rounded-xl font-bold text-xs uppercase hover:bg-blue-600 transition-colors">
                     Add to Cart
                 </button>
@@ -156,15 +170,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             alert(`${productName} added to your cart!`);
-            loadHeaderStats();
-            
+            await loadHeaderStats();
         } catch (err) {
             console.error("Cart Error:", err);
             let msg = "An unknown error occurred.";
-            if (err.detail) msg = err.detail;
-            else if (err.data && err.data.detail) msg = err.data.detail;
-            else if (err.message && err.message !== "API request failed") msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
-            else if (typeof err === 'string') msg = err;
+
+            if (err.detail) {
+                msg = err.detail;
+            } else if (err.data && err.data.detail) {
+                msg = err.data.detail;
+            } else if (err.message && err.message !== "API request failed") {
+                msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
+            } else if (typeof err === 'string') {
+                msg = err;
+            }
+
             alert(`Failed to add to cart: ${msg}`);
         }
     };

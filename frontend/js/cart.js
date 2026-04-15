@@ -1,11 +1,17 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const cartContainer = document.getElementById('cart-items-list');
     const summaryBox = document.getElementById('order-summary');
+    const emptySummary = document.getElementById('empty-summary');
     const totalDisplay = document.getElementById('total-cost');
+    const subtotalDisplay = document.getElementById('subtotal-cost');
+    const balanceStatus = document.getElementById('balance-status');
     const checkoutBtn = document.getElementById('checkout-btn');
     const session = JSON.parse(localStorage.getItem("gd_user") || sessionStorage.getItem("gd_user") || 'null');
     const effectiveRole = window.GDUserView?.getEffectiveRole(session) || String(session?.role || '').toLowerCase();
     const driverPreview = !!window.GDUserView?.isDriverViewActive?.(session);
+    const itemCountPill = document.getElementById('cart-item-count');
+    const pointsDisplay = document.getElementById('display-points');
+
 
     if (!session) { window.location.href = "login.html"; return; }
     if (effectiveRole !== 'driver') {
@@ -17,6 +23,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentSponsorId = null;
     let currentMarketId = null;
     let activeCartId = null;
+
+    const escHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char] || char));
+
+    function formatPoints(value) {
+        const num = Number(value) || 0;
+        return `${num} pts`;
+    }
+
+    function getPointsStorageKey() {
+        return `gd_points_balance_${session.userId}_${currentSponsorId}`;
+    }
+
+    function getStoredBalance() {
+        const raw = localStorage.getItem(getPointsStorageKey());
+        return raw === null ? null : Number(raw);
+    }
+
+    function setStoredBalance(value) {
+        localStorage.setItem(getPointsStorageKey(), String(Number(value) || 0));
+    }
+
+    function setCheckoutState(enabled, label) {
+        checkoutBtn.disabled = !enabled;
+
+        if (enabled) {
+            checkoutBtn.textContent = label || 'Redeem Points';
+            checkoutBtn.className = 'w-full mt-2 bg-slate-900 text-white py-4 rounded-2xl font-black tracking-wide hover:bg-blue-600 transition-all active:scale-[0.99] shadow-lg shadow-slate-900/10';
+        } else {
+            checkoutBtn.textContent = label || 'Insufficient Points';
+            checkoutBtn.className = 'w-full mt-2 bg-slate-200 text-slate-500 py-4 rounded-2xl font-black tracking-wide cursor-not-allowed';
+        }
+    }
 
     async function initializeContext() {
         try {
@@ -58,14 +102,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             if (!currentSponsorId) {
+                console.error('CRITICAL: currentSponsorId is null. Cannot fetch points.');
                 showEmptyCart();
                 return;
             }
 
             const cacheBuster = Date.now();
-            currentBalance = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
-            const pointsDisplay = document.getElementById('display-points');
-            if (pointsDisplay) pointsDisplay.textContent = `${currentBalance} pts`;
+            const backendBalance = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
+            const storedBalance = getStoredBalance();
+
+            currentBalance = storedBalance !== null ? storedBalance : Number(backendBalance || 0);
+
+            if (pointsDisplay) {
+                pointsDisplay.textContent = formatPoints(currentBalance);
+            }
 
             if (!items.length) {
                 showEmptyCart();
@@ -125,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 checkoutBtn.className = "w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-blue-600 transition-colors";
             }
         } catch (err) {
-            console.error("Failed to load cart context:", err);
+            console.error('Failed to load cart context:', err);
             showEmptyCart();
         }
     }
@@ -133,19 +183,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     function showEmptyCart() {
         const existing = document.getElementById('cart-context-banner');
         if (existing) existing.remove();
-        cartContainer.innerHTML = `<div class="p-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
-            <p class="text-slate-400 font-medium italic">Your cart is empty.</p>
-        </div>`;
+
+        if (itemCountPill) itemCountPill.textContent = '0 Items';
+
+        cartContainer.innerHTML = `
+            <div class="p-20 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                <p class="text-slate-400 font-medium italic">Your cart is empty.</p>
+            </div>
+        `;
+
         summaryBox.classList.add('hidden');
+        if (emptySummary) emptySummary.classList.remove('hidden');
+        activeCartId = null;
     }
 
     checkoutBtn.addEventListener('click', async () => {
-        const confirmed = confirm(`Redeem points to place this order?`);
+        const confirmed = confirm('Redeem your points to place this rewards order?');
         if (!confirmed) return;
 
         try {
-            checkoutBtn.disabled = true;
-            checkoutBtn.textContent = "Processing...";
+            setCheckoutState(false, 'Processing...');
 
             await window.API.request("/products/purchase", {
                 method: "PATCH",
@@ -159,22 +216,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             alert("Order successful! Your rewards are on the way.");
             window.location.href = "store_catalog.html";
         } catch (err) {
-            const msg = typeof err.message === 'object' ? JSON.stringify(err.message) : err.message;
-            alert(`Checkout failed: ${msg}`);
-            checkoutBtn.disabled = false;
-            checkoutBtn.textContent = "Place Order";
+            console.error(err);
+            showNotification('Order Failed');
         }
     });
 
-    window.removeItem = async (_cartId, cartItemId) => {
+    function showNotification(message, isError = false) {
+        const notif = document.createElement('div');
+
+        notif.className = `
+            fixed top-6 right-6 z-50
+            ${isError ? 'bg-red-600' : 'bg-emerald-600'} text-white
+            px-6 py-4 rounded-2xl
+            shadow-xl font-bold
+        `;
+
+        notif.textContent = message;
+        document.body.appendChild(notif);
+
+        setTimeout(() => {
+            notif.classList.add('opacity-0', 'transition', 'duration-500');
+            setTimeout(() => notif.remove(), 500);
+        }, 2500);
+    }
+
+    window.removeItem = async (cartId, cartItemId) => {
         try {
             await window.API.request(`/cart/${session.userId}/${cartItemId}`, {
-                method: "DELETE"
+                method: 'DELETE'
             });
-            loadCart();
+
+            await loadCart();
         } catch (error) {
-            console.error("Failed to remove item", error);
-            alert("Could not remove item from cart.");
+            console.error('Failed to remove item', error);
+            alert('Could not remove item from cart.');
         }
     };
 
