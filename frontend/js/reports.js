@@ -1,6 +1,4 @@
 (() => {
-  const PAGE_NAME = 'admin-reports.html';
-
   function safeParse(value) {
     try { return value ? JSON.parse(value) : null; } catch { return null; }
   }
@@ -74,6 +72,59 @@
     setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
   }
 
+  async function fetchJson(path, params = {}) {
+    const response = await fetch(buildUrl(path, params));
+    if (!response.ok) {
+      const text = await response.text();
+      let parsed = text;
+      try { parsed = text ? JSON.parse(text) : null; } catch {}
+      const error = new Error('Request failed');
+      error.status = response.status;
+      error.data = parsed;
+      throw error;
+    }
+    return response.json();
+  }
+
+  function normalizeCell(value) {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  }
+
+  function arrayToCsv(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return 'No data';
+    }
+    const keySet = new Set();
+    rows.forEach((row) => Object.keys(row || {}).forEach((key) => keySet.add(key)));
+    const headers = Array.from(keySet);
+    const escapeCell = (value) => `"${normalizeCell(value).replace(/"/g, '""')}"`;
+    const lines = [headers.map(escapeCell).join(',')];
+    rows.forEach((row) => {
+      lines.push(headers.map((header) => escapeCell(row?.[header])).join(','));
+    });
+    return lines.join('');
+  }
+
+  function downloadTextAsCsv(csvText, filename) {
+    const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+  }
+
+  function getTimestampSuffix() {
+    const now = new Date();
+    const pad = (v) => String(v).padStart(2, '0');
+    return `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  }
+
   function setGlobalStatus(message, kind = 'info') {
     const el = document.getElementById('globalStatus');
     if (!el) return;
@@ -102,10 +153,21 @@
     selectEl.innerHTML = rows.join('');
   }
 
-  async function getSponsorContext(user) {
+  function getDateFilters(prefix) {
+    const startValue = document.getElementById(`${prefix}StartDate`)?.value || '';
+    const endValue = document.getElementById(`${prefix}EndDate`)?.value || '';
+    return {
+      start_date: startValue ? `${startValue}T00:00:00` : '',
+      end_date: endValue ? `${endValue}T23:59:59` : ''
+    };
+  }
+
+  async function getSponsorDrivers(user) {
     const sponsor = await window.GDUserView?.resolveSponsorContext?.(user);
     const sponsorId = sponsor?.Sponsor_ID ?? sponsor?.sponsor_id;
-    const sponsorEmail = sponsor?.Sponsor_Email ?? sponsor?.sponsor_email ?? user.email;
+    const sponsorEmail = sponsor?.Sponsor_Email ?? sponsor?.sponsor_email ?? user?.email;
+    if (!sponsorId) throw new Error('Sponsor not linked');
+
     const sponsorshipsRaw = await window.API.request(`/sponsors/${encodeURIComponent(sponsorEmail)}/drivers?sponsor_id=${encodeURIComponent(sponsorId)}`).catch((error) => {
       if (error?.status === 404) return [];
       throw error;
@@ -126,16 +188,19 @@
       driver
     ]));
 
-    return sponsorships.map((membership) => {
-      const driverId = Number(membership?.Driver_User_ID ?? membership?.driver_user_id ?? membership?.Registered_Driver ?? membership?.registered_driver);
-      const driverRow = driverMap.get(driverId) || {};
-      const userRow = userMap.get(driverId) || {};
-      return {
-        driverId,
-        name: driverRow?.Driver_Name ?? driverRow?.driver_name ?? userRow?.User_Name ?? userRow?.user_name ?? `Driver #${driverId}`,
-        email: userRow?.User_Email ?? userRow?.user_email ?? 'No email found'
-      };
-    }).filter((driver) => Number.isFinite(driver.driverId));
+    return {
+      sponsor,
+      drivers: sponsorships.map((membership) => {
+        const driverId = Number(membership?.Driver_User_ID ?? membership?.driver_user_id ?? membership?.Registered_Driver ?? membership?.registered_driver);
+        const driverRow = driverMap.get(driverId) || {};
+        const userRow = userMap.get(driverId) || {};
+        return {
+          driverId,
+          name: driverRow?.Driver_Name ?? driverRow?.driver_name ?? userRow?.User_Name ?? userRow?.user_name ?? `Driver #${driverId}`,
+          email: userRow?.User_Email ?? userRow?.user_email ?? 'No email found'
+        };
+      }).filter((driver) => Number.isFinite(driver.driverId))
+    };
   }
 
   async function getAdminDrivers() {
@@ -168,6 +233,17 @@
     })).filter((user) => Number.isFinite(user.userId));
   }
 
+  async function getAllSponsors() {
+    if (window.GDUserView?.fetchAllSponsors) {
+      return window.GDUserView.fetchAllSponsors();
+    }
+    const rows = await window.API.request('/sponsors').catch(() => []);
+    return Array.isArray(rows) ? rows.map((s) => ({
+      id: Number(s?.Sponsor_ID ?? s?.sponsor_id ?? 0),
+      name: s?.Sponsor_Name ?? s?.sponsor_name ?? 'Unknown Sponsor'
+    })).filter((s) => Number.isFinite(s.id) && s.id > 0) : [];
+  }
+
   function updateSponsorDriverSummary(drivers) {
     const selectEl = document.getElementById('sponsorDriverSelect');
     const countEl = document.getElementById('sponsorDriverCount');
@@ -177,9 +253,9 @@
 
     const selected = drivers.find((driver) => String(driver.driverId) === String(selectEl.value)) || drivers[0] || null;
     if (selected && !selectEl.value) selectEl.value = String(selected.driverId);
-    countEl.textContent = `${drivers.length} Drivers`;
-    idEl.textContent = selected ? selected.driverId : '—';
-    emailEl.textContent = selected ? selected.email : '—';
+    if (countEl) countEl.textContent = `${drivers.length} Drivers`;
+    if (idEl) idEl.textContent = selected ? selected.driverId : '—';
+    if (emailEl) emailEl.textContent = selected ? selected.email : '—';
   }
 
   function updateAdminDriverSummary(drivers) {
@@ -188,13 +264,14 @@
     const emailEl = document.getElementById('adminDriverEmail');
     if (!selectEl) return;
     const selected = drivers.find((driver) => String(driver.driverId) === String(selectEl.value)) || null;
-    idEl.textContent = selected ? selected.driverId : 'All Drivers';
-    emailEl.textContent = selected ? selected.email : 'All Drivers';
+    if (idEl) idEl.textContent = selected ? selected.driverId : 'All Drivers';
+    if (emailEl) emailEl.textContent = selected ? selected.email : 'All Drivers';
   }
 
   document.addEventListener('DOMContentLoaded', async () => {
     const user = getStoredUser();
     let sponsorAllowedDriverIds = new Set();
+    let sponsorContext = null;
     if (!user) {
       window.location.href = 'login.html';
       return;
@@ -216,21 +293,26 @@
     const sponsorPanel = document.getElementById('sponsorPanel');
     const adminPanel = document.getElementById('adminPanel');
 
-    roleBadge.textContent = isAdmin ? 'Admin Reports' : 'Sponsor Reports';
-    roleBadge.classList.remove('hidden');
-    pageTitle.textContent = isAdmin ? 'Admin Reports' : 'Sponsor Reports';
-    pageSubtitle.textContent = isAdmin
-      ? 'Download every CSV export the current backend exposes for admin users.'
-      : 'Download per-driver CSV exports for the drivers tied to your sponsor account.';
+    if (roleBadge) {
+      roleBadge.textContent = isAdmin ? 'Admin Reports' : 'Sponsor Reports';
+      roleBadge.classList.remove('hidden');
+    }
+    if (pageTitle) pageTitle.textContent = isAdmin ? 'Admin Reports' : 'Sponsor Reports';
+    if (pageSubtitle) pageSubtitle.textContent = isAdmin
+      ? 'Download every report the current backend exposes for admin users.'
+      : 'Download per-driver exports plus sponsor sales and invoice reports.';
 
     let sponsorDrivers = [];
     let adminDrivers = [];
     let allUsers = [];
+    let allSponsors = [];
 
     try {
       if (isSponsor) {
-        sponsorPanel.classList.remove('hidden');
-        sponsorDrivers = await getSponsorContext(user);
+        sponsorPanel?.classList.remove('hidden');
+        const sponsorData = await getSponsorDrivers(user);
+        sponsorContext = sponsorData.sponsor;
+        sponsorDrivers = sponsorData.drivers;
         sponsorAllowedDriverIds = new Set(sponsorDrivers.map((driver) => String(driver.driverId)));
 
         populateSelect(
@@ -248,8 +330,8 @@
       }
 
       if (isAdmin) {
-        adminPanel.classList.remove('hidden');
-        [adminDrivers, allUsers] = await Promise.all([getAdminDrivers(), getAllUsers()]);
+        adminPanel?.classList.remove('hidden');
+        [adminDrivers, allUsers, allSponsors] = await Promise.all([getAdminDrivers(), getAllUsers(), getAllSponsors()]);
 
         populateSelect(
           document.getElementById('adminDriverSelect'),
@@ -265,6 +347,11 @@
           document.getElementById('bugUserSelect'),
           allUsers.map((account) => ({ value: String(account.userId), label: `${account.name} (${account.role})` })),
           'Any user'
+        );
+        populateSelect(
+          document.getElementById('adminSponsorSelect'),
+          allSponsors.map((sponsor) => ({ value: sponsor.name, label: sponsor.name })),
+          'All sponsors'
         );
 
         updateAdminDriverSummary(adminDrivers);
@@ -293,11 +380,14 @@
 
           if (action.startsWith('sponsor-')) {
             const driverId = document.getElementById('sponsorDriverSelect')?.value;
-            if (!driverId) {
-              throw new Error('Please select one of your drivers first.');
-            }
-            if (!sponsorAllowedDriverIds.has(String(driverId))) {
-              throw new Error('That driver is not linked to your sponsor account.');
+            const sponsorName = sponsorContext?.Sponsor_Name ?? sponsorContext?.sponsor_name ?? '';
+            const dateFilters = getDateFilters('sponsor');
+
+            if (['sponsor-transactions','sponsor-decisions','sponsor-password','sponsor-bugs','sponsor-sales-driver'].includes(action)) {
+              if (!driverId) throw new Error('Please select one of your drivers first.');
+              if (!sponsorAllowedDriverIds.has(String(driverId))) {
+                throw new Error('That driver is not linked to your sponsor account.');
+              }
             }
 
             if (action === 'sponsor-transactions') {
@@ -308,16 +398,30 @@
               await downloadCsv('/user/password_report_csv', { driver_id: driverId });
             } else if (action === 'sponsor-bugs') {
               await downloadCsv('/report/bug_report_csv', { user: driverId });
+            } else if (action === 'sponsor-sales-driver') {
+              const rows = await fetchJson('/report/sales/driver', {
+                driver_id: driverId,
+                sponsor_name: sponsorName,
+                ...dateFilters
+              });
+              downloadTextAsCsv(arrayToCsv(Array.isArray(rows) ? rows : []), `sales_by_driver_${getTimestampSuffix()}.csv`);
+            } else if (action === 'sponsor-invoices') {
+              await downloadCsv('/report/invoices/sponsor/export', {
+                sponsor_name: sponsorName,
+                ...dateFilters
+              });
             }
           }
 
           if (action.startsWith('admin-')) {
             const driverId = document.getElementById('adminDriverSelect')?.value;
             const userId = document.getElementById('adminUserSelect')?.value;
+            const sponsorName = document.getElementById('adminSponsorSelect')?.value;
             const bugUserId = document.getElementById('bugUserSelect')?.value;
             const bugAuditId = document.getElementById('bugAuditId')?.value.trim();
             const bugCategory = document.getElementById('bugCategory')?.value.trim();
             const bugStatus = document.getElementById('bugStatus')?.value;
+            const dateFilters = getDateFilters('admin');
 
             if (action === 'admin-transactions') {
               await downloadCsv('/driver/transaction_report_csv', { driver_id: driverId });
@@ -332,10 +436,28 @@
                 category: bugCategory,
                 status: bugStatus
               });
+            } else if (action === 'admin-sales-driver') {
+              const rows = await fetchJson('/report/sales/driver', {
+                driver_id: driverId,
+                sponsor_name: sponsorName,
+                ...dateFilters
+              });
+              downloadTextAsCsv(arrayToCsv(Array.isArray(rows) ? rows : []), `sales_by_driver_${getTimestampSuffix()}.csv`);
+            } else if (action === 'admin-sales-sponsor') {
+              const rows = await fetchJson('/report/sales/sponsor', {
+                sponsor_name: sponsorName,
+                ...dateFilters
+              });
+              downloadTextAsCsv(arrayToCsv(Array.isArray(rows) ? rows : []), `sales_by_sponsor_${getTimestampSuffix()}.csv`);
+            } else if (action === 'admin-invoices') {
+              await downloadCsv('/report/invoices/sponsor/export', {
+                sponsor_name: sponsorName,
+                ...dateFilters
+              });
             }
           }
 
-          setGlobalStatus('CSV download started.', 'success');
+          setGlobalStatus('Report download started.', 'success');
         } catch (error) {
           console.error(error);
           setGlobalStatus(getErrorMessage(error, 'Download failed.'), 'error');

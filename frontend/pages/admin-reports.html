@@ -31,11 +31,7 @@
           <p class="text-xs font-bold uppercase tracking-[0.2em] text-blue-600">CSV Export Center</p>
           <h2 class="mt-3 text-3xl font-black tracking-tight text-slate-900">Download the reports your role can use right now</h2>
           <p class="mt-4 text-slate-500 max-w-3xl leading-7">
-            Use this page to download available report files for your organization and users.
           </p>
-        </div>
-        <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 max-w-md">
-          Some report types are still being added and will appear here when available.
         </div>
       </div>
     </section>
@@ -48,7 +44,7 @@
           <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between gap-4">
             <div>
               <h3 class="text-lg font-bold text-slate-900">Sponsor driver filters</h3>
-              <p class="text-sm text-slate-500 mt-1">Select one of your drivers and download the available report files.</p>
+              <p class="text-sm text-slate-500 mt-1">Select one of your drivers and choose an optional sales date range.</p>
             </div>
             <span id="sponsorDriverCount" class="text-xs font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700">0 Drivers</span>
           </div>
@@ -67,19 +63,24 @@
                 <p id="sponsorDriverEmail" class="mt-2 text-sm font-semibold text-slate-900 break-all">—</p>
               </div>
             </div>
-            <p class="text-sm text-slate-500">
-              Choose one of your drivers to download the available report files.
-            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="sponsorStartDate" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start date</label>
+                <input id="sponsorStartDate" type="date" class="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600">
+              </div>
+              <div>
+                <label for="sponsorEndDate" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End date</label>
+                <input id="sponsorEndDate" type="date" class="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600">
+              </div>
+            </div>
           </div>
         </div>
-
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/70">
             <h3 class="text-lg font-bold text-slate-900">Driver point transaction CSV</h3>
-            <p class="text-sm text-slate-500 mt-1">Uses <code>/driver/transaction_report_csv?driver_id=...</code>.</p>
           </div>
           <div class="p-6 space-y-4">
             <p class="text-sm text-slate-500">Download the selected driver's point history.</p>
@@ -90,7 +91,6 @@
         <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/70">
             <h3 class="text-lg font-bold text-slate-900">Application decision CSV</h3>
-            <p class="text-sm text-slate-500 mt-1">Uses <code>/application/decision_report_csv?driver_id=...</code>.</p>
           </div>
           <div class="p-6 space-y-4">
             <p class="text-sm text-slate-500">Download application decisions for the selected driver.</p>
@@ -101,7 +101,6 @@
         <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/70">
             <h3 class="text-lg font-bold text-slate-900">Password change CSV</h3>
-            <p class="text-sm text-slate-500 mt-1">Uses <code>/user/password_report_csv?driver_id=...</code>.</p>
           </div>
           <div class="p-6 space-y-4">
             <p class="text-sm text-slate-500">Download password change log rows tied to the selected driver user ID.</p>
@@ -112,11 +111,20 @@
         <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/70">
             <h3 class="text-lg font-bold text-slate-900">Bug / audit issue CSV</h3>
-            <p class="text-sm text-slate-500 mt-1">Uses <code>/report/bug_report_csv?user=...</code>.</p>
           </div>
           <div class="p-6 space-y-4">
             <p class="text-sm text-slate-500">Download bug report rows for the selected driver user ID.</p>
             <button data-download="sponsor-bugs" class="w-full px-5 py-3 rounded-2xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-md active:scale-95">Download Bug Report CSV</button>
+          </div>
+        </article>
+
+        <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/70">
+            <h3 class="text-lg font-bold text-slate-900">Sponsor invoice CSV</h3>
+          </div>
+          <div class="p-6 space-y-4">
+            <p class="text-sm text-slate-500">Download invoice totals for your sponsor with the optional date range.</p>
+            <button data-download="sponsor-invoices" class="w-full px-5 py-3 rounded-2xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-md active:scale-95">Download Sponsor Invoice CSV</button>
           </div>
         </article>
       </div>
@@ -127,7 +135,7 @@
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/70">
             <h3 class="text-lg font-bold text-slate-900">Driver-based admin filters</h3>
-            <p class="text-sm text-slate-500 mt-1">Use these for transaction and decision CSVs.</p>
+            <p class="text-sm text-slate-500 mt-1">Use these for transaction, decision, and driver sales CSVs.</p>
           </div>
           <div class="p-6 space-y-5">
             <div>
@@ -144,18 +152,32 @@
                 <p id="adminDriverEmail" class="mt-2 text-sm font-semibold text-slate-900 break-all">All Drivers</p>
               </div>
             </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="adminStartDate" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Start date</label>
+                <input id="adminStartDate" type="date" class="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600">
+              </div>
+              <div>
+                <label for="adminEndDate" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">End date</label>
+                <input id="adminEndDate" type="date" class="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600">
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/70">
-            <h3 class="text-lg font-bold text-slate-900">User / bug report filters</h3>
-            <p class="text-sm text-slate-500 mt-1">Use these for password and bug report CSVs.</p>
+            <h3 class="text-lg font-bold text-slate-900">User / sponsor / bug report filters</h3>
+            <p class="text-sm text-slate-500 mt-1">Use these for password, sponsor sales, invoice, and bug report CSVs.</p>
           </div>
           <div class="p-6 space-y-5">
             <div>
               <label for="adminUserSelect" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Password report user scope</label>
               <select id="adminUserSelect" class="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"></select>
+            </div>
+            <div>
+              <label for="adminSponsorSelect" class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Sponsor scope</label>
+              <select id="adminSponsorSelect" class="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600"></select>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -224,6 +246,16 @@
             <button data-download="admin-bugs" class="w-full px-5 py-3 rounded-2xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-md active:scale-95">Download Bug Report CSV</button>
           </div>
         </article>
+
+        <article class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden lg:col-span-2">
+          <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/70">
+            <h3 class="text-lg font-bold text-slate-900">Sponsor invoice CSV</h3>
+          </div>
+          <div class="p-6 space-y-4">
+            <p class="text-sm text-slate-500">Download all sponsor invoices or a selected sponsor with the optional date range.</p>
+            <button data-download="admin-invoices" class="w-full md:w-auto px-5 py-3 rounded-2xl bg-slate-900 text-white font-bold hover:bg-slate-800 transition-all shadow-md active:scale-95">Download Sponsor Invoice CSV</button>
+          </div>
+        </article>
       </div>
 
     </section>
@@ -233,7 +265,6 @@
   <script src="../js/reports.js"></script>
   <script src="../js/notifications.js"></script>
   <script src="../js/driver-sponsor-context.js"></script>
-    <script src="../js/navbar.js"></script>
-  
+  <script src="../js/navbar.js"></script>
 </body>
 </html>
