@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function getMySponsor() {
-        return window.API.request(`/sponsor-user/resolve?email=${encodeURIComponent(session.email)}`);
+        return window.GDUserView?.resolveSponsorContext?.(session);
     }
 
     async function loadDrivers() {

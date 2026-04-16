@@ -15,8 +15,9 @@ onReady(async () => {
         return;
     }
 
-    const role = String(session.role || '').toLowerCase();
-    if (!role.includes('sponsor')) {
+    const role = window.GDUserView?.getEffectiveRole(session) || String(session.role || '').toLowerCase();
+    const sponsorPreview = !!window.GDUserView?.isSponsorViewActive?.(session);
+    if (!String(role).includes('sponsor')) {
         alert('Only sponsor users can access the market builder.');
         window.location.href = 'index.html';
         return;
@@ -188,7 +189,8 @@ onReady(async () => {
     }
 
     async function resolveSponsor() {
-        sponsor = await window.API.request(`/sponsor-user/resolve?email=${encodeURIComponent(session.email)}`);
+        sponsor = await window.GDUserView?.resolveSponsorContext?.(session);
+        if (!sponsor) throw new Error('Sponsor context could not be resolved for this view');
         const sponsorName = sponsor?.Sponsor_Name ?? sponsor?.sponsor_name ?? session.name ?? 'Sponsor';
         sponsorBadge.textContent = sponsorName;
         sponsorBadge.classList.remove('hidden');
