@@ -60,8 +60,8 @@
   }
 
   function requireSponsor(session) {
-    const role = (session?.role || "").toLowerCase();
-    return role === "sponsor" || role === "sponsor_user";
+    const role = window.GDUserView?.getEffectiveRole(session) || (session?.role || '').toLowerCase();
+    return role === 'sponsor' || role === 'sponsor_user';
   }
 
   let pendingRejectApp = null;
@@ -100,16 +100,10 @@
     return reason;
   }
 
-  async function lookupSponsorId(email) {
-    // Sponsor users are linked to a Sponsor through Sponsor_User (UserID -> Sponsor_ID).
-    // This endpoint resolves either:
-    //  - a real Sponsor email (Sponsor.Sponsor_Email), OR
-    //  - the logged-in sponsor user's email via Sponsor_User.
-    const sponsor = await window.API.request(`/sponsor-user/resolve?email=${encodeURIComponent(email)}`);
-
+  async function lookupSponsorId(session) {
+    const sponsor = await window.GDUserView?.resolveSponsorContext?.(session);
     const sponsorId = sponsor?.Sponsor_ID ?? sponsor?.sponsor_id ?? sponsor?.sponsorId;
-    if (!sponsorId) throw new Error("Sponsor record missing Sponsor_ID.");
-
+    if (!sponsorId) throw new Error('Sponsor record missing Sponsor_ID.');
     return sponsorId;
   }
 
@@ -200,9 +194,7 @@
       setStatus(`${decision}…`);
 
       // Resolve the real sponsor from sponsor_user
-      const sponsor = await window.API.request(
-        `/sponsor-user/resolve?email=${encodeURIComponent(session.email)}`
-      );
+      const sponsor = await window.GDUserView?.resolveSponsorContext?.(session);
 
       // 👇 Use Sponsor_Name ONLY
       const adminName =
@@ -295,7 +287,7 @@
 
     try {
       setStatus("Loading applications…");
-      const sponsorId = await lookupSponsorId(session.email);
+      const sponsorId = await lookupSponsorId(session);
       const status = statusFilter?.value || "";
       const applicant = (emailSearch?.value || "").trim();
 

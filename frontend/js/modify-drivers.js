@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const listContainer = document.getElementById('driverListContainer');
     const countPill = document.getElementById('driverCount');
-    const session = JSON.parse(sessionStorage.getItem('gd_user') || 'null');
+    const session = JSON.parse(sessionStorage.getItem('gd_user') || localStorage.getItem('gd_user') || 'null');
     const allowedDriverIds = new Set();
 
     if (!session) {
@@ -30,7 +30,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function getMySponsor() {
-        return window.API.request(`/sponsor-user/resolve?email=${encodeURIComponent(session.email)}`);
+        // Always resolve sponsor context even in preview modes
+        const baseRole = window.GDUserView?.getBaseRole?.(session);
+
+        // If admin, force sponsor preview context
+        if (baseRole === 'admin') {
+            const ctx = await window.GDUserView?.resolveSponsorContext?.(session);
+            if (ctx) return ctx;
+
+            // fallback: pick first sponsor manually
+            const sponsors = await window.GDUserView?.fetchAllSponsors?.();
+            if (sponsors?.length) {
+                const s = sponsors[0];
+                return {
+                    Sponsor_ID: s.id,
+                    sponsor_id: s.id,
+                    Sponsor_Email: s.email,
+                    sponsor_email: s.email
+                };
+            }
+            return null;
+        }
+
+        // If real sponsor user
+        return window.GDUserView?.resolveSponsorContext?.(session);
     }
 
     async function loadDrivers() {

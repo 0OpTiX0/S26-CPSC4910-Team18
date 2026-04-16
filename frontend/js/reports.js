@@ -103,7 +103,7 @@
   }
 
   async function getSponsorContext(user) {
-    const sponsor = await window.API.request(`/sponsor-user/resolve?email=${encodeURIComponent(user.email)}`);
+    const sponsor = await window.GDUserView?.resolveSponsorContext?.(user);
     const sponsorId = sponsor?.Sponsor_ID ?? sponsor?.sponsor_id;
     const sponsorEmail = sponsor?.Sponsor_Email ?? sponsor?.sponsor_email ?? user.email;
     const sponsorshipsRaw = await window.API.request(`/sponsors/${encodeURIComponent(sponsorEmail)}/drivers?sponsor_id=${encodeURIComponent(sponsorId)}`).catch((error) => {
