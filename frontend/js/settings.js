@@ -1,7 +1,9 @@
-// frontend/js/settings.js
-
 function safeParse(s) {
-  try { return s ? JSON.parse(s) : null; } catch { return null; }
+  try {
+    return s ? JSON.parse(s) : null;
+  } catch {
+    return null;
+  }
 }
 
 function getStoredUser() {
@@ -9,55 +11,102 @@ function getStoredUser() {
 }
 
 function setStoredUser(user) {
-  if (sessionStorage.getItem("gd_user")) sessionStorage.setItem("gd_user", JSON.stringify(user));
-  else localStorage.setItem("gd_user", JSON.stringify(user));
+  if (sessionStorage.getItem("gd_user")) {
+    sessionStorage.setItem("gd_user", JSON.stringify(user));
+  } else {
+    localStorage.setItem("gd_user", JSON.stringify(user));
+  }
+}
+
+function computeInitials(name) {
+  const cleaned = String(name || "").trim();
+  if (!cleaned) return "U";
+  return cleaned
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((w) => (w[0] ? w[0].toUpperCase() : ""))
+    .join("") || "U";
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
   let user = getStoredUser();
-  if (!user) { window.location.href = "login.html"; return; }
+  if (!user) {
+    window.location.href = "login.html";
+    return;
+  }
 
-  // Profile elements
+  const viewMode = document.getElementById("view-mode");
+  const editMode = document.getElementById("edit-mode");
   const editActions = document.getElementById("edit-actions");
   const editBtn = document.getElementById("edit-toggle-btn");
   const cancelBtn = document.getElementById("cancel-btn");
-  const viewMode = document.getElementById("view-mode");
-  const editMode = document.getElementById("edit-mode");
   const form = document.getElementById("settings-form");
   const profileInitials = document.getElementById("profile-initials");
   const deleteBtn = document.getElementById("delete-account-btn");
 
-  // View fields
   const viewName = document.getElementById("view-name");
   const viewEmail = document.getElementById("view-email");
-  const viewBio = document.getElementById("view-bio");
   const viewPhone = document.getElementById("view-phone");
+  const viewBio = document.getElementById("view-bio");
 
-  // Edit fields
   const setName = document.getElementById("set-name");
   const setEmail = document.getElementById("set-email");
-  const setBio = document.getElementById("set-bio");
   const setPhone = document.getElementById("set-phone");
+  const setBio = document.getElementById("set-bio");
 
-  function computeInitials(name) {
-    const cleaned = (name || "").trim();
-    if (!cleaned) return "U";
-    return cleaned.split(/\s+/).slice(0, 2).map(w => (w[0] ? w[0].toUpperCase() : "")).join("") || "U";
+  const pwForm = document.getElementById("password-form");
+  const currentPw = document.getElementById("current-password");
+  const newPw = document.getElementById("new-password");
+  const confirmPw = document.getElementById("confirm-password");
+  const pwError = document.getElementById("pw-error");
+  const pwSuccess = document.getElementById("pw-success");
+  const pwClearBtn = document.getElementById("pw-clear-btn");
+  const pwSubmitBtn = document.getElementById("pw-submit-btn");
+
+  function getUserId() {
+    return user?.userId ?? user?.UserID ?? user?.id ?? null;
   }
 
-  function loadUserData() {
+  function showInlineMessage(target, message, kind = "info") {
+    if (!target) return;
+    target.textContent = String(message || "");
+    target.classList.remove("hidden", "text-red-600", "text-green-600", "text-slate-600");
+    if (kind === "error") target.classList.add("text-red-600");
+    else if (kind === "success") target.classList.add("text-green-600");
+    else target.classList.add("text-slate-600");
+    if (!message) target.classList.add("hidden");
+  }
+
+  function normalizeAccountPayload(account, existingUser) {
+    return {
+      ...existingUser,
+      userId: account?.userId ?? existingUser?.userId ?? existingUser?.UserID ?? existingUser?.id,
+      id: account?.userId ?? existingUser?.id ?? existingUser?.userId,
+      name: account?.name ?? existingUser?.name ?? "",
+      email: account?.email ?? existingUser?.email ?? "",
+      phone: account?.phone ?? existingUser?.phone ?? "",
+      role: account?.role ?? existingUser?.role ?? "",
+      timezone: account?.timezone ?? existingUser?.timezone ?? "",
+      bio: existingUser?.bio ?? ""
+    };
+  }
+
+  function renderUserData() {
     user = getStoredUser() || user;
 
-    if (profileInitials) profileInitials.textContent = computeInitials(user.name);
-    if (viewName) viewName.textContent = user.name || "—";
-    if (viewEmail) viewEmail.textContent = user.email || "—";
-    if (viewBio) viewBio.textContent = user.bio || "No bio provided.";
-    if (viewPhone) viewPhone.textContent = user.phone || "—";
+    if (profileInitials) {
+      profileInitials.textContent = computeInitials(user?.name);
+    }
 
-    if (setName) setName.value = user.name || "";
-    if (setEmail) setEmail.value = user.email || "";
-    if (setBio) setBio.value = user.bio || "";
-    if (setPhone) setPhone.value = user.phone || "";
+    if (viewName) viewName.textContent = user?.name || "—";
+    if (viewEmail) viewEmail.textContent = user?.email || "—";
+    if (viewPhone) viewPhone.textContent = user?.phone || "—";
+    if (viewBio) viewBio.textContent = user?.bio?.trim() || "No bio provided.";
+
+    if (setName) setName.value = user?.name || "";
+    if (setEmail) setEmail.value = user?.email || "";
+    if (setPhone) setPhone.value = user?.phone || "";
+    if (setBio) setBio.value = user?.bio || "";
   }
 
   function enterEditMode() {
@@ -74,144 +123,164 @@ document.addEventListener("DOMContentLoaded", async () => {
     editActions?.classList.add("hidden");
   }
 
-  async function hydratePhoneIfMissing() {
-    try {
-      if (!user.email || user.phone) return;
-      if (!window.API?.request) return;
+  async function refreshUserFromBackend() {
+    const userId = getUserId();
+    if (!userId || !window.API?.request) return;
 
-      const results = await window.API.request(`/user?userEmail=${encodeURIComponent(user.email)}`);
-      const row = Array.isArray(results) ? results[0] : results;
-      if (!row) return;
-
-      const phone =
-        row.User_Phone_Num || row.user_phone_num || row.userPhoneNum || row.phone || row.phoneNumber;
-
-      if (phone) {
-        user.phone = String(phone);
-        setStoredUser(user);
-      }
-    } catch (e) {
-      console.warn("Could not hydrate phone:", e);
-    }
+    const account = await window.API.request(`/account/${encodeURIComponent(userId)}`);
+    user = normalizeAccountPayload(account, user);
+    setStoredUser(user);
+    renderUserData();
   }
 
-  // Initial render
-  loadUserData();
-  await hydratePhoneIfMissing();
-  loadUserData();
+  function getErrorMessage(err, fallback = "Something went wrong.") {
+    const detail = err?.data?.detail;
+    if (Array.isArray(detail)) {
+      return detail.map((item) => item?.msg || JSON.stringify(item)).join(", ");
+    }
+    if (typeof detail === "string") return detail;
+    if (detail && typeof detail === "object") return JSON.stringify(detail);
+    return err?.message || fallback;
+  }
 
-  // Profile events
-  editBtn?.addEventListener("click", () => { loadUserData(); enterEditMode(); });
-  cancelBtn?.addEventListener("click", () => { exitEditMode(); loadUserData(); });
+  function showToast(message, kind = "success") {
+    const toast = document.createElement("div");
+    toast.className = `fixed top-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-xl text-sm font-bold text-white ${
+      kind === "error" ? "bg-red-600" : "bg-emerald-600"
+    }`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add("opacity-0", "transition", "duration-500");
+      setTimeout(() => toast.remove(), 500);
+    }, 2200);
+  }
+
+  function isStrongEnough(pw) {
+    return String(pw || "").length >= 8;
+  }
+
+  renderUserData();
+
+  try {
+    await refreshUserFromBackend();
+  } catch (e) {
+    console.warn("Could not refresh account from backend:", e);
+  }
+
+  editBtn?.addEventListener("click", async () => {
+    try {
+      await refreshUserFromBackend();
+    } catch (e) {
+      console.warn("Could not refresh before edit:", e);
+    }
+    enterEditMode();
+  });
+
+  cancelBtn?.addEventListener("click", async () => {
+    try {
+      await refreshUserFromBackend();
+    } catch (e) {
+      renderUserData();
+    }
+    exitEditMode();
+  });
 
   form?.addEventListener("submit", async (e) => {
     e.preventDefault();
 
     const submitBtn = form.querySelector('button[type="submit"]');
     const originalText = submitBtn?.textContent || "Save Changes";
+    const userId = getUserId();
 
-    if (submitBtn) {
-        submitBtn.textContent = "Saving...";
-        submitBtn.disabled = true;
+    if (!userId) {
+      showToast("Missing user ID. Log in again.", "error");
+      return;
     }
-
-    user = getStoredUser() || user;
-    const userId = user?.userId ?? user?.UserID ?? user?.id;
 
     try {
-        // Send update to DB
-        await window.API.request(`/account/${encodeURIComponent(userId)}`, {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Saving...";
+      }
+
+      const payload = {
+        name: setName?.value.trim() || "",
+        phone: setPhone?.value.trim() || "",
+        timezone: user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+      };
+
+      await window.API.request(`/account/${encodeURIComponent(userId)}`, {
         method: "PATCH",
-        body: {
-            name: setName.value.trim(),
-            phone: setPhone.value.trim()
-        }
-        });
+        body: payload
+      });
 
-        // Update local session AFTER DB succeeds
-        user.name = setName.value.trim();
-        user.phone = setPhone.value.trim();
-        user.bio = setBio.value;
+      user = {
+        ...user,
+        name: payload.name,
+        phone: payload.phone,
+        bio: setBio?.value || user?.bio || ""
+      };
+      setStoredUser(user);
 
-        setStoredUser(user);
+      await refreshUserFromBackend();
 
-        loadUserData();
-        exitEditMode();
+      user.bio = setBio?.value || "";
+      setStoredUser(user);
+      renderUserData();
 
-        alert("Profile updated successfully!");
+      exitEditMode();
+      showToast("Profile updated successfully.");
     } catch (err) {
-        const msg =
-        err?.data?.detail ||
-        err?.message ||
-        "Could not update profile.";
-        alert(msg);
+      console.error(err);
+      showToast(getErrorMessage(err, "Could not update profile."), "error");
     } finally {
-        if (submitBtn) {
-        submitBtn.textContent = originalText;
+      if (submitBtn) {
         submitBtn.disabled = false;
-        }
+        submitBtn.textContent = originalText;
+      }
     }
-    });
-
+  });
 
   deleteBtn?.addEventListener("click", () => {
-    const confirmed = confirm("Are you sure you want to delete your account? This will remove your local session on this device.");
+    const confirmed = confirm("Are you sure you want to delete your account? This only clears your session on this device.");
     if (!confirmed) return;
+
     localStorage.removeItem("gd_user");
     sessionStorage.removeItem("gd_user");
     alert("Your local session was cleared.");
     window.location.href = "index.html";
   });
 
-  // -------------------------
-  // Password Change (Backend)
-  // -------------------------
-  const pwForm = document.getElementById("password-form");
-  const currentPw = document.getElementById("current-password");
-  const newPw = document.getElementById("new-password");
-  const confirmPw = document.getElementById("confirm-password");
-  const pwError = document.getElementById("pw-error");
-  const pwSuccess = document.getElementById("pw-success");
-  const pwClearBtn = document.getElementById("pw-clear-btn");
-  const pwSubmitBtn = document.getElementById("pw-submit-btn");
-
-  function showPwError(msg) {
-    pwSuccess?.classList.add("hidden");
-    if (!pwError) return;
-    pwError.textContent = String(msg);
-    pwError.classList.remove("hidden");
-  }
-
-  function showPwSuccess(msg) {
-    pwError?.classList.add("hidden");
-    if (!pwSuccess) return;
-    pwSuccess.textContent = String(msg);
-    pwSuccess.classList.remove("hidden");
-  }
-
-  function isStrongEnough(pw) {
-    return pw.length >= 8;
-  }
-
-  pwClearBtn?.addEventListener("click", () => {
+  function clearPasswordForm() {
     if (currentPw) currentPw.value = "";
     if (newPw) newPw.value = "";
     if (confirmPw) confirmPw.value = "";
     pwError?.classList.add("hidden");
     pwSuccess?.classList.add("hidden");
-  });
+  }
+
+  function showPwError(msg) {
+    if (pwSuccess) pwSuccess.classList.add("hidden");
+    showInlineMessage(pwError, msg, "error");
+  }
+
+  function showPwSuccess(msg) {
+    if (pwError) pwError.classList.add("hidden");
+    showInlineMessage(pwSuccess, msg, "success");
+  }
+
+  pwClearBtn?.addEventListener("click", clearPasswordForm);
 
   pwForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    if (!window.API?.request) {
-      showPwError("API not available. Make sure api.js loads before settings.js.");
+    const userId = getUserId();
+    if (!userId) {
+      showPwError("Missing user ID. Log out and log in again.");
       return;
     }
-
-    user = getStoredUser() || user;
-    const userId = user?.userId ?? user?.UserID ?? user?.id;
-    if (!userId) { showPwError("Missing userId. Log out and log in again."); return; }
 
     const cur = (currentPw?.value || "").trim();
     const npw = newPw?.value || "";
@@ -220,31 +289,38 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!cur) return showPwError("Please enter your current password.");
     if (!npw) return showPwError("Please enter a new password.");
     if (npw !== cpw) return showPwError("New password and confirmation do not match.");
-    if (!isStrongEnough(npw)) return showPwError("Password must be 8+ chars.");
+    if (!isStrongEnough(npw)) return showPwError("Password must be at least 8 characters.");
 
     try {
-      if (pwSubmitBtn) { pwSubmitBtn.disabled = true; pwSubmitBtn.textContent = "Changing..."; }
+      if (pwSubmitBtn) {
+        pwSubmitBtn.disabled = true;
+        pwSubmitBtn.textContent = "Changing...";
+      }
 
       await window.API.request(`/account/${encodeURIComponent(userId)}/change-password`, {
         method: "POST",
-        body: { current_password: cur, new_password: npw }
+        body: {
+          current_password: cur,
+          new_password: npw
+        }
       });
 
       showPwSuccess("Password changed successfully.");
-      if (currentPw) currentPw.value = "";
-      if (newPw) newPw.value = "";
-      if (confirmPw) confirmPw.value = "";
+      clearPasswordForm();
     } catch (err) {
-      const d = err?.data;
-      const msg =
-        d?.detail?.[0]?.msg ||
-        d?.detail ||
-        d?.message ||
+      console.error(err);
+      showPwError(
+        err?.data?.detail?.[0]?.msg ||
+        err?.data?.detail ||
+        err?.data?.message ||
         err?.message ||
-        "Could not change password. Check your current password and try again.";
-      showPwError(msg);
+        "Could not change password."
+      );
     } finally {
-      if (pwSubmitBtn) { pwSubmitBtn.disabled = false; pwSubmitBtn.textContent = "Change Password"; }
+      if (pwSubmitBtn) {
+        pwSubmitBtn.disabled = false;
+        pwSubmitBtn.textContent = "Change Password";
+      }
     }
   });
 });
