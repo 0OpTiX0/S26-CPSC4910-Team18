@@ -1,6 +1,7 @@
 // frontend/js/driver-sponsor-context.js
 (function () {
   const STORAGE_KEY = "gd_active_sponsor_id";
+  const PREVIEW_CACHE_KEY = 'gd_preview_driver_sponsors';
 
   function safeParse(value) {
     try { return value ? JSON.parse(value) : null; } catch { return null; }
@@ -28,34 +29,29 @@
   }
 
   function clearSponsorStateForDriver(driverId) {
-    if (!driverId) return;
-    const cacheKey = getCacheKeyForDriver(driverId);
-    sessionStorage.removeItem(cacheKey);
-    localStorage.removeItem(cacheKey);
+    if (driverId) {
+      const cacheKey = getCacheKeyForDriver(driverId);
+      sessionStorage.removeItem(cacheKey);
+      localStorage.removeItem(cacheKey);
+    }
     sessionStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(STORAGE_KEY);
   }
 
   async function fetchSponsorsForDriver(driverId) {
     if (!driverId || !window.API?.request) return [];
-
     const cacheKey = getCacheKeyForDriver(driverId);
-
     try {
       const response = await window.API.request(`/admin/get_sponsor_list?driver_id=${encodeURIComponent(driverId)}`);
       const sponsors = normalizeSponsors(response);
-
       sessionStorage.setItem(cacheKey, JSON.stringify(sponsors));
       localStorage.setItem(cacheKey, JSON.stringify(sponsors));
-
       if (!sponsors.length) {
         sessionStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(STORAGE_KEY);
       }
-
       return sponsors;
     } catch (err) {
-      // Treat "no sponsors" or backend errors as empty sponsor state for this driver
       sessionStorage.setItem(cacheKey, JSON.stringify([]));
       localStorage.setItem(cacheKey, JSON.stringify([]));
       sessionStorage.removeItem(STORAGE_KEY);
@@ -64,12 +60,24 @@
     }
   }
 
+  async function fetchSponsorsForPreview() {
+    if (!window.GDUserView?.fetchAllSponsors) return [];
+    const sponsors = normalizeSponsors(await window.GDUserView.fetchAllSponsors());
+    sessionStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(sponsors));
+    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(sponsors));
+    if (!sponsors.length) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+    }
+    return sponsors;
+  }
+
   function getCachedSponsors(driverId) {
-    if (!driverId) return [];
-    const cacheKey = getCacheKeyForDriver(driverId);
-    return normalizeSponsors(
-      safeParse(sessionStorage.getItem(cacheKey)) || safeParse(localStorage.getItem(cacheKey)) || []
-    );
+    if (driverId) {
+      const cacheKey = getCacheKeyForDriver(driverId);
+      return normalizeSponsors(safeParse(sessionStorage.getItem(cacheKey)) || safeParse(localStorage.getItem(cacheKey)) || []);
+    }
+    return normalizeSponsors(safeParse(sessionStorage.getItem(PREVIEW_CACHE_KEY)) || safeParse(localStorage.getItem(PREVIEW_CACHE_KEY)) || []);
   }
 
   function getActiveSponsorId() {
@@ -79,57 +87,44 @@
   }
 
   function dispatchSponsorChange(sponsorId, sponsor) {
-    window.dispatchEvent(new CustomEvent("gd:active-sponsor-changed", {
-      detail: { sponsorId, sponsor }
-    }));
+    window.dispatchEvent(new CustomEvent('gd:active-sponsor-changed', { detail: { sponsorId, sponsor } }));
   }
 
   function setActiveSponsorId(sponsorId, options = {}) {
     const id = Number(sponsorId);
     if (!Number.isFinite(id) || id <= 0) return;
-
     sessionStorage.setItem(STORAGE_KEY, String(id));
     localStorage.setItem(STORAGE_KEY, String(id));
-
     const user = getStoredUser();
     const sponsors = getCachedSponsors(user?.userId);
     const sponsor = sponsors.find((item) => Number(item.id) === id) || null;
-
-    if (!options.silent) {
-      dispatchSponsorChange(id, sponsor);
-    }
+    if (!options.silent) dispatchSponsorChange(id, sponsor);
   }
 
   async function ensureActiveSponsor(user = getStoredUser()) {
-    const role = String(user?.role || "").toLowerCase();
-    if (!user?.userId || role !== "driver") {
-      return { sponsors: [], activeSponsor: null };
+    const baseRole = String(user?.role || '').toLowerCase();
+    const effectiveRole = window.GDUserView?.getEffectiveRole?.(user) || baseRole;
+    if (!user?.userId || effectiveRole !== 'driver') {
+      return { sponsors: [], activeSponsor: null, activeSponsorId: null };
     }
 
-    // Always prefer current driver's own cache
-    let sponsors = getCachedSponsors(user.userId);
-
-    // If none cached for this driver, fetch fresh
+    const isPreviewDriver = baseRole !== 'driver';
+    let sponsors = getCachedSponsors(isPreviewDriver ? null : user.userId);
     if (!sponsors.length) {
-      sponsors = await fetchSponsorsForDriver(user.userId);
+      sponsors = isPreviewDriver ? await fetchSponsorsForPreview() : await fetchSponsorsForDriver(user.userId);
     }
-
-    // If still none, clear stale state and return no sponsor
     if (!sponsors.length) {
-      clearSponsorStateForDriver(user.userId);
+      clearSponsorStateForDriver(isPreviewDriver ? null : user.userId);
       return { sponsors: [], activeSponsor: null, activeSponsorId: null };
     }
 
     let activeId = getActiveSponsorId();
     let activeSponsor = sponsors.find((item) => item.id === activeId) || null;
-
-    // If saved sponsor isn't valid for this driver, default to first valid sponsor
     if (!activeSponsor) {
       activeSponsor = sponsors[0];
       setActiveSponsorId(activeSponsor.id, { silent: true });
       activeId = activeSponsor.id;
     }
-
     return { sponsors, activeSponsor, activeSponsorId: activeId };
   }
 
@@ -143,32 +138,28 @@
 
   async function renderSelector(container, options = {}) {
     if (!container) return;
-
     const user = options.user || getStoredUser();
     const ctx = await ensureActiveSponsor(user);
-
     if (!ctx.sponsors.length) {
-      container.classList.remove("hidden");
+      container.classList.remove('hidden');
       container.innerHTML = `
         <div class="${options.compact ? 'flex items-center gap-3' : 'bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'}">
           <div>
-            <div class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">${options.label || "Active Sponsor"}</div>
-            ${options.compact ? "" : `<div class="text-sm text-slate-500 mt-1">You are not currently linked to any sponsor.</div>`}
+            <div class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">${options.label || 'Active Sponsor'}</div>
+            ${options.compact ? '' : `<div class="text-sm text-slate-500 mt-1">No sponsor context is available for this view.</div>`}
           </div>
           <div class="inline-flex items-center gap-2 rounded-xl bg-slate-100 text-slate-500 px-3 py-2 text-sm font-bold border border-slate-200">
-            <span>No sponsor assigned</span>
+            <span>No sponsor available</span>
           </div>
-        </div>
-      `;
+        </div>`;
       return;
     }
 
     const compact = !!options.compact;
-    const label = options.label || "Active Sponsor";
-    const helpText = options.helpText || "Switch sponsors to view the correct market, balance, and rewards context.";
+    const label = options.label || 'Active Sponsor';
+    const helpText = options.helpText || 'Switch sponsors to view the correct market, balance, and rewards context.';
     const single = ctx.sponsors.length === 1;
-
-    container.classList.remove("hidden");
+    container.classList.remove('hidden');
     container.innerHTML = `
       <div class="${compact ? 'flex items-center gap-3' : 'bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'}">
         <div>
@@ -176,22 +167,12 @@
           ${compact ? '' : `<div class="text-sm text-slate-500 mt-1">${helpText}</div>`}
         </div>
         <div class="${compact ? '' : 'sm:min-w-[18rem]'}">
-          ${single ? `
-            <div class="inline-flex items-center gap-2 rounded-xl bg-blue-50 text-blue-700 px-3 py-2 text-sm font-bold border border-blue-100">
-              <span>${ctx.activeSponsor.name}</span>
-            </div>
-          ` : `
-            <select id="gd-active-sponsor-select" class="w-full px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
-              ${ctx.sponsors.map((s) => `<option value="${s.id}" ${s.id === ctx.activeSponsor.id ? 'selected' : ''}>${s.name}</option>`).join('')}
-            </select>
-          `}
+          ${single ? `<div class="inline-flex items-center gap-2 rounded-xl bg-blue-50 text-blue-700 px-3 py-2 text-sm font-bold border border-blue-100"><span>${ctx.activeSponsor.name}</span></div>` : `<select id="gd-active-sponsor-select" class="w-full px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">${ctx.sponsors.map((s) => `<option value="${s.id}" ${s.id === ctx.activeSponsor.id ? 'selected' : ''}>${s.name}</option>`).join('')}</select>`}
         </div>
-      </div>
-    `;
-
-    const select = container.querySelector("#gd-active-sponsor-select");
+      </div>`;
+    const select = container.querySelector('#gd-active-sponsor-select');
     if (select) {
-      select.addEventListener("change", (event) => {
+      select.addEventListener('change', (event) => {
         const nextId = Number(event.target.value);
         if (!Number.isFinite(nextId) || nextId <= 0) return;
         setActiveSponsorId(nextId);
@@ -202,6 +183,7 @@
   window.GDDriverSponsors = {
     getStoredUser,
     fetchSponsorsForDriver,
+    fetchSponsorsForPreview,
     getCachedSponsors,
     getActiveSponsorId,
     setActiveSponsorId,
