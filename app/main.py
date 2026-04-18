@@ -680,6 +680,40 @@ def getDrivers(
 ):
     stmt = select(Driver_User)
     drivers = session.exec(stmt).all()
+
+    now = datetime.now(timezone.utc)
+    updated = False
+
+    # 2. Check if any suspensions have expired
+    for driver in drivers:
+        if driver.Is_Suspended and driver.Suspension_Until:
+            # Ensure Suspension_Until is offset-aware for comparison
+            until = driver.Suspension_Until
+            if until.tzinfo is None:
+                until = until.replace(tzinfo=timezone.utc)
+            
+            if now > until:
+                # The time has passed! Flip the bits back to active
+                driver.Is_Suspended = False
+                driver.Suspension_Reason = None
+                
+                # Also find the sponsorship record to set it back to "Active"
+                sponsorship_stmt = select(Sponsorship).where(
+                    Sponsorship.Driver_User_ID == driver.Registered_Driver
+                )
+                sponsorships = session.exec(sponsorship_stmt).all()
+                for s in sponsorships:
+                    s.Membership_Status = "Active"
+                    session.add(s)
+                
+                session.add(driver)
+                updated = True
+
+    # 3. If we changed anything, commit it to the database
+    if updated:
+        session.commit()
+        # Re-fetch to get fresh data for the return
+        drivers = session.exec(select(Driver_User)).all()
     drivers = decryptList(drivers)
     return drivers
 
@@ -1143,7 +1177,7 @@ def submitApplication(payload: ApplicationRequest, session: Session = Depends(ge
     if not emailSponsor(dumbDecryption(user.User_Email), dumbDecryption(sponsor.Sponsor_Email)):
         print("There was a problem sending the application")
 
-    existing = session.exec(select(Driver_Application).where(Driver_Application.Applicant_Email == dumbEncryption(payload.appEmail))).first()
+    existing = session.exec(select(Driver_Application).where(Driver_Application.Applicant_Email == dumbEncryption(payload.appEmail), Driver_Application.Sponsor_ID == sponsor.Sponsor_ID)).first()
     if existing:
         if existing.Applicant_Status == "Rejected":
             session.delete(existing)
