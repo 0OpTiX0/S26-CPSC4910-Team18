@@ -286,27 +286,35 @@
   }
 
   async function updatePointsDisplay(user) {
-    if (!user?.userId || !window.CONFIG) return;
+    if (!user?.userId) return;
+
     try {
       let sponsorId = window.GDDriverSponsors?.getActiveSponsorId?.() || null;
+
       if (!sponsorId && window.GDDriverSponsors?.ensureActiveSponsor) {
         const ctx = await window.GDDriverSponsors.ensureActiveSponsor(user);
         sponsorId = ctx?.activeSponsor?.id || null;
       }
+
       if (!sponsorId) return;
-      const response = await fetch(`${CONFIG.API_BASE_URL}/points/${user.userId}?sponsor_id=${encodeURIComponent(sponsorId)}`);
-      if (!response.ok) return;
-      const data = await response.json();
-      const points = typeof data === 'number' ? data : (data.total_points || 0);
+
+      const data = await window.API.request(
+        `/points/${user.userId}?sponsor_id=${encodeURIComponent(sponsorId)}`
+      );
+
+      const points = typeof data === 'number'
+        ? data
+        : (data.total_points || 0);
+
       const dropdownPointsEl = document.getElementById('dropdown-points');
       if (dropdownPointsEl) dropdownPointsEl.textContent = points;
+
       const storeBalanceEl = document.getElementById('display-points');
       if (storeBalanceEl) storeBalanceEl.textContent = points;
     } catch (err) {
       console.error('Failed to fetch points:', err);
     }
   }
-
   async function mountDriverSponsorSwitcher(user) {
     if (getEffectiveRole(user) !== 'driver') return;
     if (!window.GDDriverSponsors?.renderSelector) return;
@@ -405,11 +413,7 @@
     if (effectiveRole === 'driver') {
       mountDriverSponsorSwitcher(storedUser);
       if (getBaseRole(storedUser) === 'driver') {
-        const checkConfigAndLoad = () => {
-          if (typeof CONFIG !== 'undefined') updatePointsDisplay(storedUser);
-          else setTimeout(checkConfigAndLoad, 100);
-        };
-        checkConfigAndLoad();
+        updatePointsDisplay(storedUser);
       }
     } else if (effectiveRole === 'sponsor') {
       mountAdminSponsorSwitcher(storedUser);

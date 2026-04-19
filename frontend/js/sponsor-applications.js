@@ -100,11 +100,18 @@
     return reason;
   }
 
-  async function lookupSponsorId(session) {
-    const sponsor = await window.GDUserView?.resolveSponsorContext?.(session);
-    const sponsorId = sponsor?.Sponsor_ID ?? sponsor?.sponsor_id ?? sponsor?.sponsorId;
-    if (!sponsorId) throw new Error('Sponsor record missing Sponsor_ID.');
-    return sponsorId;
+  async function lookupSponsorId(user) {
+    const sponsor = await window.GDUserView.resolveSponsorContext(user);
+
+    const sponsorId = sponsor?.Sponsor_ID ?? sponsor?.sponsor_id;
+    const sponsorEmail = sponsor?.Sponsor_Email ?? sponsor?.sponsor_email ?? user?.email;
+
+    if (!sponsorId) {
+      console.error('lookupSponsorId sponsor object:', sponsor);
+      throw new Error('Sponsor record missing Sponsor_ID');
+    }
+
+    return { sponsorId, sponsorEmail, sponsor };
   }
 
 
@@ -287,7 +294,7 @@
 
     try {
       setStatus("Loading applications…");
-      const sponsorId = await lookupSponsorId(session);
+      const { sponsorId } = await lookupSponsorId(session);
       const status = statusFilter?.value || "";
       const applicant = (emailSearch?.value || "").trim();
 

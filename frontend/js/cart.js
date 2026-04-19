@@ -111,7 +111,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const backendBalance = await window.API.request(`/points/${session.userId}?sponsor_id=${currentSponsorId}&_t=${cacheBuster}`);
             const storedBalance = getStoredBalance();
 
-            currentBalance = storedBalance !== null ? storedBalance : Number(backendBalance || 0);
+            currentBalance = Number(backendBalance || 0);
+            setStoredBalance(currentBalance);
 
             if (pointsDisplay) {
                 pointsDisplay.textContent = formatPoints(currentBalance);
@@ -157,7 +158,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
                 cartContainer.appendChild(itemRow);
             });
-
+            subtotalDisplay.textContent = `${total} pts`;
             totalDisplay.textContent = `${total} pts`;
             summaryBox.classList.remove('hidden');
             

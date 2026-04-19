@@ -23,7 +23,15 @@
   }
 
   function getApiBase() {
-    return ((window.CONFIG && window.CONFIG.API_BASE_URL) || "http://127.0.0.1:8000").replace(/\/+$/, "");
+    let base = "http://127.0.0.1:8000";
+
+    if (window.__API_BASE__) {
+      base = window.__API_BASE__;
+    } else if (window.CONFIG && window.CONFIG.API_BASE_URL) {
+      base = window.CONFIG.API_BASE_URL;
+    }
+
+    return String(base).replace(/\/+$/, "");
   }
 
   function escapeHtml(value) {
