@@ -1,4 +1,13 @@
-document.addEventListener('DOMContentLoaded', async () => {
+const onReady = (fn) => (window.jQuery ? $(fn) : document.addEventListener('DOMContentLoaded', fn));
+const bindClick = (selector, handler) => {
+    if (window.jQuery) {
+        $(selector).on('click', handler);
+    } else {
+        document.querySelector(selector)?.addEventListener('click', handler);
+    }
+};
+
+onReady(async () => {
     const session = JSON.parse(sessionStorage.getItem('gd_user') || 'null');
 
     if (!session) {
@@ -6,8 +15,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    const role = String(session.role || '').toLowerCase();
-    if (!role.includes('sponsor')) {
+    const role = window.GDUserView?.getEffectiveRole(session) || String(session.role || '').toLowerCase();
+    const sponsorPreview = !!window.GDUserView?.isSponsorViewActive?.(session);
+    if (!String(role).includes('sponsor')) {
         alert('Only sponsor users can access the market builder.');
         window.location.href = 'index.html';
         return;
@@ -179,7 +189,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function resolveSponsor() {
-        sponsor = await window.API.request(`/sponsor-user/resolve?email=${encodeURIComponent(session.email)}`);
+        sponsor = await window.GDUserView?.resolveSponsorContext?.(session);
+        if (!sponsor) throw new Error('Sponsor context could not be resolved for this view');
         const sponsorName = sponsor?.Sponsor_Name ?? sponsor?.sponsor_name ?? session.name ?? 'Sponsor';
         sponsorBadge.textContent = sponsorName;
         sponsorBadge.classList.remove('hidden');
@@ -197,7 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         try {
-            currentMarket = await window.API.request(`/market/${storedMarketId}`);
+            currentMarket = await window.API.request(`/market?market_id=${encodeURIComponent(storedMarketId)}`);
             const marketName = currentMarket?.Market_Name ?? currentMarket?.market_name ?? '';
             const marketDescription = currentMarket?.Market_Description ?? currentMarket?.market_description ?? '';
             marketNameEl.value = marketName;
@@ -237,7 +248,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    createMarketBtn?.addEventListener('click', async () => {
+    bindClick('#createMarketBtn', async () => {
         const name = marketNameEl.value.trim();
         const description = marketDescriptionEl.value.trim();
 
@@ -269,7 +280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    addProductBtn?.addEventListener('click', async () => {
+    bindClick('#addProductBtn', async () => {
         const marketId = currentMarket?.Market_ID ?? currentMarket?.market_id;
         if (!marketId) {
             setStatus(productStatusEl, 'Create or load a market before adding products.', 'error');
@@ -299,10 +310,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    refreshCatalogBtn?.addEventListener('click', loadCatalog);
-    reloadMarketBtn?.addEventListener('click', hydrateMarketFromStorage);
+    bindClick('#refreshCatalogBtn', loadCatalog);
+    bindClick('#reloadMarketBtn', hydrateMarketFromStorage);
 
-    clearSavedMarketBtn?.addEventListener('click', () => {
+    bindClick('#clearSavedMarketBtn', () => {
         localStorage.removeItem(marketStorageKey());
         currentMarket = null;
         updateSummary();
@@ -311,7 +322,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         setStatus(productStatusEl, '');
     });
 
-    logoutBtn?.addEventListener('click', () => {
+    bindClick('#logoutBtn', () => {
         sessionStorage.removeItem('gd_user');
         localStorage.removeItem('gd_user');
         window.location.href = 'login.html';

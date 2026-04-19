@@ -12,6 +12,7 @@ const port = process.env.PORT || 8080;
 app.use("/pages", express.static(path.join(__dirname, "pages")));
 app.use("/js", express.static(path.join(__dirname, "js")));
 app.use("/dist", express.static(path.join(__dirname, "dist")));
+app.use("/img", express.static(path.join(__dirname, "img")));
 
 // Runtime config injection for the static pages.
 // Set API_BASE in Elastic Beanstalk environment properties to your backend base URL,

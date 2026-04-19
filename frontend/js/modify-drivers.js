@@ -1,7 +1,8 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const listContainer = document.getElementById('driverListContainer');
     const countPill = document.getElementById('driverCount');
-    const session = JSON.parse(sessionStorage.getItem('gd_user') || 'null');
+    const session = JSON.parse(sessionStorage.getItem('gd_user') || localStorage.getItem('gd_user') || 'null');
+    const allowedDriverIds = new Set();
 
     if (!session) {
         window.location.href = 'login.html';
@@ -29,7 +30,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function getMySponsor() {
-        return window.API.request(`/sponsor-user/resolve?email=${encodeURIComponent(session.email)}`);
+        // Always resolve sponsor context even in preview modes
+        const baseRole = window.GDUserView?.getBaseRole?.(session);
+
+        // If admin, force sponsor preview context
+        if (baseRole === 'admin') {
+            const ctx = await window.GDUserView?.resolveSponsorContext?.(session);
+            if (ctx) return ctx;
+
+            // fallback: pick first sponsor manually
+            const sponsors = await window.GDUserView?.fetchAllSponsors?.();
+            if (sponsors?.length) {
+                const s = sponsors[0];
+                return {
+                    Sponsor_ID: s.id,
+                    sponsor_id: s.id,
+                    Sponsor_Email: s.email,
+                    sponsor_email: s.email
+                };
+            }
+            return null;
+        }
+
+        // If real sponsor user
+        return window.GDUserView?.resolveSponsorContext?.(session);
     }
 
     async function loadDrivers() {
@@ -79,6 +103,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     sponsorId
                 };
             }).filter((driver) => Number.isFinite(driver.driverId));
+
+            allowedDriverIds.clear();
+            mergedDrivers.forEach((driver) => allowedDriverIds.add(String(driver.driverId)));
 
             listContainer.innerHTML = '';
             countPill.textContent = `${mergedDrivers.length} Drivers`;
@@ -133,6 +160,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             listContainer.querySelectorAll('.adjust-btn').forEach((button) => {
                 button.addEventListener('click', () => {
                     const driverId = Number(button.dataset.driverId);
+                    if (!allowedDriverIds.has(String(driverId))) {
+                        alert('You can only modify drivers linked to your sponsor.');
+                        return;
+                    }
                     const sponsorIdValue = Number(button.dataset.sponsorId);
                     const driverEmail = button.dataset.driverEmail || '';
                     const driverName = button.dataset.driverName || driverEmail;
@@ -144,6 +175,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 button.addEventListener('click', () => {
                     const sponsorIdValue = Number(button.dataset.sponsorId);
                     const driverId = Number(button.dataset.driverId);
+                    if (!allowedDriverIds.has(String(driverId))) {
+                        alert('You can only modify drivers linked to your sponsor.');
+                        return;
+                    }
                     const driverEmail = button.dataset.driverEmail || `Driver #${driverId}`;
                     window.dropDriver(sponsorIdValue, driverId, driverEmail);
                 });
@@ -312,6 +347,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     window.dropDriver = async (sponsorId, driverId, driverEmail) => {
+        if (!allowedDriverIds.has(String(driverId))) {
+            alert('You can only modify drivers linked to your sponsor.');
+            return;
+        }
         const reason = prompt(`Drop ${driverEmail} from your sponsor program?
 Optional: enter a reason (or leave blank):`, '');
         if (reason === null) return;

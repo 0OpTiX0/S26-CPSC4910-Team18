@@ -28,10 +28,15 @@
         <a href="about.html" class="text-sm font-semibold text-slate-500 hover:text-blue-600 transition">About</a>
       </nav>
 
-      <div class="w-48 flex-shrink-0 flex items-center justify-end">
-        <div class="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100">
-            <span class="text-[10px] font-black text-blue-400 uppercase tracking-tighter">Your Balance</span>
-            <span id="display-points" class="font-black text-blue-700">0</span>
+      <div class="inline-flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-2 shadow-sm">
+        <div class="flex flex-col leading-tight">
+            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                Your Balance
+            </span>
+            <span id="display-points" class="text-lg font-black text-slate-900 tracking-tight">
+                0 pts
+            </span>
+        </div>
         </div>
 
         <a href="cart.html" class="relative group p-2 bg-slate-100 hover:bg-slate-900 rounded-xl transition-all duration-300">
@@ -66,7 +71,8 @@
   </main>
 
   <script src="../js/api.js"></script>
-  <script src="../js/navbar.js"></script>
+  <script src="../js/driver-sponsor-context.js"></script>
+    <script src="../js/navbar.js"></script>
   <script src="../js/store_catalog.js"></script>
 </body>
 </html>
