@@ -4,9 +4,13 @@
 (() => {
   function getApiBase() {
     let configBase = "http://127.0.0.1:8000";
-    if (window.CONFIG && window.CONFIG.API_BASE_URL) {
+
+    if (window.__API_BASE__) {
+      configBase = window.__API_BASE__;
+    } else if (window.CONFIG && window.CONFIG.API_BASE_URL) {
       configBase = window.CONFIG.API_BASE_URL;
     }
+
     return String(configBase).replace(/\/+$/, "");
   }
 

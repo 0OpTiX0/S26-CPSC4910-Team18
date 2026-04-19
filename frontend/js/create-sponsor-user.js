@@ -25,7 +25,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function getMySponsor() {
-        return window.GDUserView?.resolveSponsorContext?.(session);
+        if (!session?.email) {
+            throw new Error('No sponsor email found in session');
+        }
+
+        return await window.API.request(
+            `/sponsor-user/resolve?email=${encodeURIComponent(session.email)}`
+        );
     }
 
     createBtn.addEventListener('click', async () => {
@@ -58,7 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 phone: phone,
                 pssw: password,
                 role: "sponsor",
-                sponsor_join: sponsorEmail,   
+                sponsor_join: sponsorEmail,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             };
 
