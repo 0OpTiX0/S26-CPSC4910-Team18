@@ -2616,6 +2616,7 @@ def getDriverCSV(driver_id: Optional[int] = Query(None),
     for report in reports:
         report.Driver_Name = r[i]["Driver_Name"]
         report.Sponsor_Name = r[i]["Sponsor_Name"]
+        i+=1
     
     buffer =io.StringIO()
     
