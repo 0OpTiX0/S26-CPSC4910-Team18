@@ -2610,6 +2610,12 @@ def getDriverCSV(driver_id: Optional[int] = Query(None),
     
     
     reports = session.exec(stmt).all()
+
+    r = decryptList(reports)
+    i = 0
+    for report in reports:
+        report.Driver_Name = r[i]["Driver_Name"]
+        report.Sponsor_Name = r[i]["Sponsor_Name"]
     
     buffer =io.StringIO()
     
