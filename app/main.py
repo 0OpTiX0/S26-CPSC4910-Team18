@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlmodel import select, Session, delete
 from sqlalchemy import func, desc, String, Integer, cast
-from encrypt import encryptString, verifyPassword, generate_verification_code
+from encrypt import encryptString, verifyPassword, generate_verification_code, dumbEncryption, dumbDecryption
 from datetime import datetime, timezone, timedelta
 from mailTo import emailSponsor, passwordResetEmail
 from typing import Optional, Literal
@@ -239,6 +239,42 @@ def _convert_usd_to_points(usd_price: Decimal, point_value: Decimal) -> int:
 
     return points
 
+"""
+Encryption Functionality for Returning
+"""
+
+def decryptList(ses):
+    arr = []
+
+    for i in ses:
+        
+        sp : dict = i.model_dump()
+        
+        for j in sp:
+            if isinstance(sp[str(j)],(int,datetime,bool)) or sp[str(j)] == None:
+                continue
+            if (str(j).lower() == "sponsor_description" or str(j).lower() == "description" or str(j).lower() == "changedat"
+                or str(j).lower() == "reason_for_change") or str(j).lower() == "points_change" or str(j).lower() == "latest_purchase_at" or str(j).lower() == "verification_code" or str(j).lower() == "user_hashed_pss" or str(j).lower() == "time_zone":
+                continue
+            sp[str(j)] = dumbDecryption(sp[str(j)])
+        arr.append(sp)
+    return arr
+
+def encryptList(ses):
+    arr = []
+
+    for i in ses:
+        
+        sp : dict = i.model_dump()
+        
+        for j in sp:
+            if isinstance(sp[str(j)],(int,datetime,bool)) or sp[str(j)] == None:
+                continue
+            if str(j).lower() == "sponsor_description" or str(j).lower() == "description":
+                continue
+            sp[str(j)] = dumbEncryption(sp[str(j)])
+        arr.append(sp)
+    return arr
 
 # -------------------------
 # USER MANAGEMENT
@@ -255,15 +291,16 @@ def getUsers(
     stmt = select(User)
 
     if userName:
-        stmt = stmt.where(func.lower(User.User_Name).like(f"%{userName.lower()}%"))
+        stmt = stmt.where(func.lower(User.User_Name).like(f"%{dumbEncryption(userName).lower()}%"))
     if userEmail:
-        stmt = stmt.where(func.lower(User.User_Email).like(f"%{userEmail.lower()}%"))
+        stmt = stmt.where(func.lower(User.User_Email).like(f"%{dumbEncryption(userEmail).lower()}%"))
     if userPhoneNum:
-        stmt = stmt.where(func.lower(User.User_Phone_Num).like(f"%{userPhoneNum.lower()}%"))
+        stmt = stmt.where(func.lower(User.User_Phone_Num).like(f"%{dumbEncryption(userPhoneNum).lower()}%"))
     if userRole:
-        stmt = stmt.where(func.lower(User.User_Role).like(f"%{userRole.lower()}%"))
+        stmt = stmt.where(func.lower(User.User_Role).like(f"%{dumbEncryption(userRole).lower()}%"))
 
     users = session.exec(stmt).all()
+    users = decryptList(users)
     return users
 
 
@@ -271,20 +308,20 @@ def getUsers(
 @app.post("/user")
 def createUser(payload: UserCreate, session: Session = Depends(getSession)):
     
-    if session.exec(select(User).where(User.User_Email == payload.email)).first():
+    if session.exec(select(User).where(User.User_Email == dumbEncryption(payload.email))).first():
         raise HTTPException(status_code=409, detail="Email already in use")
     
     
-    if session.exec(select(User).where(User.User_Phone_Num == payload.phone)).first():
+    if session.exec(select(User).where(User.User_Phone_Num == dumbEncryption(payload.phone))).first():
         raise HTTPException(status_code=409, detail="Phone already in use")
     
     validate_password_complexity(payload.pssw)
 
     user = User(
-        User_Name=payload.name,
-        User_Role=payload.role,
-        User_Email=payload.email,
-        User_Phone_Num=payload.phone,
+        User_Name=dumbEncryption(payload.name),
+        User_Role=dumbEncryption(payload.role),
+        User_Email=dumbEncryption(payload.email),
+        User_Phone_Num=dumbEncryption(payload.phone),
         User_Hashed_Pss=encryptString(payload.pssw),
         User_Login_Attempts=0,
         User_Lockout_Time=None,
@@ -299,7 +336,7 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
     session.commit()
     session.refresh(user)
     
-    if (payload.role).lower() == "driver":
+    if (payload.role.lower()) == "driver":
         stmt = select(Driver_User).where(Driver_User.Registered_Driver == user.UserID)
         driver = session.exec(stmt).first()
         if driver:
@@ -318,7 +355,7 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
     
 
 
-    if (payload.role or "").lower() == "sponsor":
+    if ((payload.role or "").lower()) == "sponsor":
         # If sponsor_join is provided, link this sponsor-user to an EXISTING Sponsor row
         join_key = (getattr(payload, "sponsor_join", None) or "").strip()
         sponsor = None
@@ -326,13 +363,13 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         if join_key:
             # Try exact email match first
             sponsor = session.exec(
-                select(Sponsor).where(func.lower(Sponsor.Sponsor_Email) == join_key.lower())
+                select(Sponsor).where(func.lower(Sponsor.Sponsor_Email) == dumbEncryption(join_key).lower())
             ).first()
 
             # Then try name match (partial)
             if not sponsor:
                 sponsor = session.exec(
-                    select(Sponsor).where(func.lower(Sponsor.Sponsor_Name).like(f"%{join_key.lower()}%"))
+                    select(Sponsor).where(func.lower(Sponsor.Sponsor_Name).like(f"%{dumbEncryption(join_key).lower()}%"))
                 ).first()
 
             if not sponsor:
@@ -341,27 +378,17 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
         # Backwards-compatible behavior: if no sponsor_join was provided, auto-create a Sponsor record tied to the user's email.
         if not sponsor:
             sponsor = session.exec(
-                select(Sponsor).where(Sponsor.Sponsor_Email == payload.email)
+                select(Sponsor).where(Sponsor.Sponsor_Email == dumbEncryption(payload.email))
             ).first()
 
             if not sponsor:
                 sponsor = Sponsor(
-                    Sponsor_Name=payload.name,
+                    Sponsor_Name=dumbEncryption(payload.name),
                     Sponsor_Description="",
-                    Sponsor_Email=payload.email,
-                    Sponsor_Phone_Num=payload.phone,
+                    Sponsor_Email=dumbEncryption(payload.email),
+                    Sponsor_Phone_Num=dumbEncryption(payload.phone),
                 )
 
-                # this is a commented out new user creation that encrypts all of a user's identifiable information
-                # *** THIS CAN BE SIMPLY UNCOMMENTED AND USED ***
-                """
-                sponsor = Sponsor(
-                    Sponsor_Name=encryptString(payload.name),
-                    Sponsor_Description="",
-                    Sponsor_Email=encryptString(payload.email),
-                    Sponsor_Phone_Num=encryptString(payload.phone),
-                )
-                """
                 session.add(sponsor)
                 session.commit()
                 session.refresh(sponsor)
@@ -381,7 +408,7 @@ def createUser(payload: UserCreate, session: Session = Depends(getSession)):
 
             session.commit()
 
-    return {"userId": user.UserID, "role": user.User_Role, "email": user.User_Email}
+    return {"userId": user.UserID, "role": dumbDecryption(user.User_Role).lower(), "email": dumbDecryption(user.User_Email)}
 
 
 @app.delete("/user/{user_id}")
@@ -396,12 +423,12 @@ def deleteUser(user_id: int, session: Session = Depends(getSession)):
 
 @app.get("/user/login_attempts")
 def getLoginAttempts(user_email : str, session: Session = Depends(getSession)):
-    stmt = select(User).where(User.User_Email == user_email)
+    stmt = select(User).where(User.User_Email == dumbEncryption(user_email))
     user = session.exec(stmt).first()
     if not user:
         raise HTTPException(status_code=404, detail="User Does not exist!")
     
-    stmt = session.exec(select(User.User_Login_Attempts).where(User.User_Email == user_email)).first()
+    stmt = session.exec(select(User.User_Login_Attempts).where(User.User_Email == dumbEncryption(user_email))).first()
     return stmt
 
 
@@ -415,7 +442,7 @@ LOCKOUT_DURATION = timedelta(seconds=60)
 
 @app.post("/login")
 def login(payload: LoginRequest, session: Session = Depends(getSession)):
-    user = session.exec(select(User).where(User.User_Email == payload.email)).first()
+    user = session.exec(select(User).where(User.User_Email == dumbEncryption(payload.email))).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -463,10 +490,10 @@ def login(payload: LoginRequest, session: Session = Depends(getSession)):
     return {
         "message": "Login successful",
         "userId": user.UserID,
-        "role": user.User_Role,
-        "email": user.User_Email,
-        "name": user.User_Name,
-        "phone": user.User_Phone_Num
+        "role": dumbDecryption(user.User_Role),
+        "email": dumbDecryption(user.User_Email),
+        "name": dumbDecryption(user.User_Name),
+        "phone": dumbDecryption(user.User_Phone_Num)
     }
 
 
@@ -480,11 +507,11 @@ def _resolve_sponsor_from_email(session: Session, email: str) -> Optional[Sponso
     1) a real Sponsor email (Sponsor.Sponsor_Email), or
     2) a sponsor-user's login email via Sponsor_User -> Sponsor.
     """
-    sponsor = session.exec(select(Sponsor).where(func.lower(Sponsor.Sponsor_Email) == email.lower())).first()
+    sponsor = session.exec(select(Sponsor).where(func.lower(Sponsor.Sponsor_Email) == dumbEncryption(email).lower())).first()
     if sponsor:
         return sponsor
 
-    user = session.exec(select(User).where(func.lower(User.User_Email) == email.lower())).first()
+    user = session.exec(select(User).where(func.lower(User.User_Email) == dumbEncryption(email).lower())).first()
     if not user or user.UserID is None:
         return None
 
@@ -501,7 +528,9 @@ def resolveSponsorForSponsorUser(email: str, session: Session = Depends(getSessi
     sponsor = _resolve_sponsor_from_email(session, email)
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found for this sponsor user email")
-    return sponsor
+    
+    l = decryptList([sponsor])
+    return l[0]
 
 @app.get("/sponsors")
 def getSponsors(
@@ -513,16 +542,18 @@ def getSponsors(
     stmt = select(Sponsor)
 
     if sponsorName:
-        stmt = stmt.where(func.lower(Sponsor.Sponsor_Name).like(f"%{sponsorName.lower()}%"))
+        stmt = stmt.where(func.lower(Sponsor.Sponsor_Name).like(f"%{dumbEncryption(sponsorName).lower()}%"))
     
     if sponsorPhoneNum:
-        stmt = stmt.where(func.lower(Sponsor.Sponsor_Phone_Num).like(f"%{sponsorPhoneNum.lower()}%"))
+        stmt = stmt.where(func.lower(Sponsor.Sponsor_Phone_Num).like(f"%{dumbEncryption(sponsorPhoneNum).lower()}%"))
     
     if sponsorEmail:
-        stmt = stmt.where(func.lower(Sponsor.Sponsor_Email).like(f"%{sponsorEmail.lower()}%"))
+        stmt = stmt.where(func.lower(Sponsor.Sponsor_Email).like(f"%{dumbEncryption(sponsorEmail).lower()}%"))
     
+    ses = session.exec(stmt).all()
+    arr = decryptList(ses)
 
-    return session.exec(stmt).all()
+    return arr
 
 @app.get("/sponsors/get_driver_login_attempts")
 def driverLoginAttempts(driver_email : str, session : Session = Depends(getSession)):
@@ -643,7 +674,8 @@ def getPointChangeByDate(start_date : datetime, end_date : datetime, driver_id :
     
     if not statusReport:
         raise HTTPException(status_code=404, detail=f"No Transactions between {start_date} and {end_date.replace(hour=end_date.max.hour, minute=end_date.max.minute, second=end_date.max.second)} were found for this driver")
-        
+    # TODO: uncomment the line of code below this when encryption is complete
+    # statusReport = decryptList(statusReport)
     return statusReport
 
 
@@ -654,7 +686,7 @@ def getDrivers(
     # 1. Fetch all drivers
     stmt = select(Driver_User)
     drivers = session.exec(stmt).all()
-    
+
     now = datetime.now(timezone.utc)
     updated = False
 
@@ -689,6 +721,8 @@ def getDrivers(
         # Re-fetch to get fresh data for the return
         drivers = session.exec(select(Driver_User)).all()
 
+    drivers = decryptList(drivers)
+
     return drivers
 
 
@@ -714,7 +748,7 @@ def enrollDriverWithSponsor(payload: EnrollDriver, session: Session = Depends(ge
     
    
     if existingSponsorship:
-        raise HTTPException(status_code=400, detail= f"Driver {driver.Driver_Name} is already enrolled at {sponsor.Sponsor_Name}.")
+        raise HTTPException(status_code=400, detail= f"Driver {dumbDecryption(driver.Driver_Name)} is already enrolled at {dumbDecryption(sponsor.Sponsor_Name)}.")
     
     
     
@@ -735,7 +769,7 @@ def enrollDriverWithSponsor(payload: EnrollDriver, session: Session = Depends(ge
     return {"message": "Driver successfully enrolled in the program!"}
 
 
-
+# TODO: implement Encryption and Decryption
 @app.post("/sponsors/{uploader_email}/users/upload_csv")
 def bulkCreateUsersSponsor(
     uploader_email: str,
@@ -861,7 +895,7 @@ def dropDriver(
             f"Reason: {drop_reason}"
         )
     else:
-        notif_message = f"You were removed from sponsor {sponsor.Sponsor_Name}."
+        notif_message = f"You were removed from sponsor {dumbDecryption(sponsor.Sponsor_Name)}."
 
     stmt = select(User).where(User.UserID == user_id)
     user = session.exec(stmt).first()
@@ -896,7 +930,7 @@ def suspendDriver(
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found")
 
-    user = session.exec(select(User).where(User.User_Email == driver_email)).first()
+    user = session.exec(select(User).where(User.User_Email == dumbEncryption(driver_email))).first()
     if not user:
         raise HTTPException(status_code=404, detail="Driver user account not found")
 
@@ -927,7 +961,7 @@ def suspendDriver(
     create_notification(
         session,
         user.UserID,
-        f"You have been suspended by {sponsor.Sponsor_Name}. Reason: {reason}. Suspension ends at {driver.Suspension_Until}.",
+        f"You have been suspended by {dumbDecryption(sponsor.Sponsor_Name)}. Reason: {reason}. Suspension ends at {driver.Suspension_Until}.",
         "Suspension"
     )
 
@@ -942,7 +976,7 @@ def suspendDriver(
 
 @app.patch("/sponsors/reinstate_driver")
 def reinstate_driver(driver_email: str, session: Session = Depends(getSession)):
-    user = session.exec(select(User).where(User.User_Email == driver_email)).first()
+    user = session.exec(select(User).where(User.User_Email == dumbEncryption(driver_email))).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -997,7 +1031,7 @@ def updateDriverAccountStatusSponsor(
     if not user:
         raise HTTPException(status_code=404, detail="Driver user not found")
 
-    if (user.User_Role or "").lower() != "driver":
+    if dumbDecryption((user.User_Role or "")).lower() != "driver":
         raise HTTPException(
             status_code=400,
             detail="Sponsors may only disable or enable driver accounts"
@@ -1042,7 +1076,7 @@ def getPendingApplications(
     sponsor_email: str,
     session: Session = Depends(getSession)
 ):
-    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == sponsor_email)).first()
+    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == dumbEncryption(sponsor_email))).first()
 
     if not sponsor:
         raise HTTPException(status_code=404, detail="Sponsor not found")
@@ -1086,7 +1120,7 @@ def updateAnyAccountStatusAdmin(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    role = (user.User_Role or "").lower()
+    role = dumbDecryption((user.User_Role or "")).lower()
     if role not in {"driver", "sponsor"}:
         raise HTTPException(
             status_code=400,
@@ -1111,7 +1145,7 @@ def updateAnyAccountStatusAdmin(
         return {
             "message": f"{role.capitalize()} account disabled successfully",
             "userId": user.UserID,
-            "role": user.User_Role,
+            "role": dumbDecryption(user.User_Role),
             "disabled": user.Is_Disabled
         }
     else:
@@ -1125,7 +1159,7 @@ def updateAnyAccountStatusAdmin(
         return {
             "message": f"{role.capitalize()} account enabled successfully",
             "userId": user.UserID,
-            "role": user.User_Role,
+            "role": dumbDecryption(user.User_Role),
             "disabled": user.Is_Disabled
         }
 
@@ -1138,20 +1172,21 @@ def updateAnyAccountStatusAdmin(
 
 @app.post("/application")
 def submitApplication(payload: ApplicationRequest, session: Session = Depends(getSession)):
-    user = session.exec(select(User).where(User.User_Email == payload.appEmail)).first()
+    user = session.exec(select(User).where(User.User_Email == dumbEncryption(payload.appEmail))).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not registered")
     if user.UserID is None:
         raise HTTPException(status_code=500, detail="User ID is missing for the user")
 
-    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == payload.sponsEmail)).first()
+    sponsor = session.exec(select(Sponsor).where(Sponsor.Sponsor_Email == dumbEncryption(payload.sponsEmail))).first()
     if not sponsor or not sponsor.Sponsor_ID:
         raise HTTPException(status_code=404, detail="Sponsor not found")
 
-    if not emailSponsor(user.User_Email, sponsor.Sponsor_Email):
+    if not emailSponsor(dumbDecryption(user.User_Email), dumbDecryption(sponsor.Sponsor_Email)):
         print("There was a problem sending the application")
 
-    existing = session.exec(select(Driver_Application).where(Driver_Application.Applicant_Email == payload.appEmail, Driver_Application.Sponsor_ID == sponsor.Sponsor_ID)).first()
+    existing = session.exec(select(Driver_Application).where(Driver_Application.Applicant_Email == dumbEncryption(payload.appEmail), Driver_Application.Sponsor_ID == sponsor.Sponsor_ID)).first()
+
     if existing:
         if existing.Applicant_Status == "Rejected":
             session.delete(existing)
@@ -1162,8 +1197,8 @@ def submitApplication(payload: ApplicationRequest, session: Session = Depends(ge
     application = Driver_Application(
         Sponsor_ID=sponsor.Sponsor_ID,
         UserID=user.UserID,
-        Applicant_Email=payload.appEmail,
-        Applicant_Phone_Num=payload.appPhoneNum,
+        Applicant_Email=dumbEncryption(payload.appEmail),
+        Applicant_Phone_Num=dumbEncryption(payload.appPhoneNum),
         Applicant_Status="Pending",
         Submitted_At=datetime.now(timezone.utc),
     )
@@ -1176,7 +1211,7 @@ def submitApplication(payload: ApplicationRequest, session: Session = Depends(ge
         create_notification(
             session,
             user.UserID,
-            f"Your application to sponsor {sponsor.Sponsor_Name} has been submitted.",
+            f"Your application to sponsor {dumbDecryption(sponsor.Sponsor_Name)} has been submitted.",
             "Application"
         )
         session.commit()
@@ -1200,9 +1235,22 @@ def getAllApplications(
     if status:
         stmt = stmt.where(Driver_Application.Applicant_Status == status)
     if applicant_email:
-        stmt = stmt.where(Driver_Application.Applicant_Email == applicant_email)
+        stmt = stmt.where(Driver_Application.Applicant_Email == dumbEncryption(applicant_email))
 
-    return session.exec(stmt).all()
+    stmt = session.exec(stmt).all()
+    arr = []
+    for i in stmt:
+        
+        sp : dict = i.model_dump()
+        
+        for j in sp:
+            if isinstance(sp[str(j)],(int,datetime,bool)) or sp[str(j)] == None or str(j) == "Applicant_Status":
+                continue
+            sp[str(j)] = dumbDecryption(sp[str(j)])
+        arr.append(sp)
+    return arr
+    
+    #return session.exec(stmt).all()
 
 
 
@@ -1259,7 +1307,7 @@ def updateStatus(
             Decision = decision,
             Reason = "Congratulations!",
             Sponsor = sponsor.Sponsor_Name,
-            AuthorizedBy= admin_name,
+            AuthorizedBy= dumbEncryption(admin_name),
             Decision_Made_At= datetime.now(timezone.utc)  
         )
         session.add(log)
@@ -1298,7 +1346,7 @@ def updateStatus(
             Decision = decision,
             Reason = rejection_reason or "",
             Sponsor = sponsor.Sponsor_Name,
-            AuthorizedBy= admin_name,
+            AuthorizedBy= dumbEncryption(admin_name),
             Decision_Made_At= datetime.now(timezone.utc)  
         )
         session.add(log)
@@ -1336,17 +1384,18 @@ def deleteApp(payload: AppDeleteReq, session: Session = Depends(getSession)):
 @app.post("/sponsor")
 def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)):
     
-    stmt = select(Sponsor).where(Sponsor.Sponsor_Name == payload.name)
+
+    stmt = select(Sponsor).where(Sponsor.Sponsor_Name == dumbEncryption(payload.name))
     existingSponsor = session.exec(stmt).first()
     
     if existingSponsor:
-        raise HTTPException(status_code= 400, detail="This sponsor already exists!")
+        raise HTTPException(status_code= 400, detail=f"This sponsor already exists!")
     
     sponsor = Sponsor(
-        Sponsor_Name=payload.name,
-        Sponsor_Description=payload.description,
-        Sponsor_Email=payload.email,
-        Sponsor_Phone_Num=payload.phone,
+        Sponsor_Name=dumbEncryption(payload.name),
+        Sponsor_Description=payload.description, # Sponsor_Description=dumbEncryption(payload.description)
+        Sponsor_Email=dumbEncryption(payload.email),
+        Sponsor_Phone_Num=dumbEncryption(payload.phone),
     )
 
 
@@ -1354,7 +1403,15 @@ def createSponsor(payload: SponsorCreate, session: Session = Depends(getSession)
     session.add(sponsor)
     session.commit()
     session.refresh(sponsor)
-    return sponsor
+    return {
+        "Sponsor_Name" : dumbDecryption(sponsor.Sponsor_Name),
+        "Sponsor_Description" : sponsor.Sponsor_Description,
+        "Sponsor_Email" : dumbDecryption(sponsor.Sponsor_Email),
+        "Sponsor_Phone_Num" : dumbDecryption(sponsor.Sponsor_Phone_Num),
+    }
+
+######################################## CURRENT POSITION ###################################################
+# TODO: current position for encryption
 
 @app.post("/admin/users/upload_csv")
 def bulkCreateUsersAdmin(
@@ -1439,12 +1496,12 @@ def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(
         raise HTTPException(status_code=404, detail="Requested sponsor does not exist")
     ######################NOTE FOR GABRIEL: THIS IS YOUR CURRENT LOCATION########################
     if update.type.strip().lower() == "name":
-        sponsor.Sponsor_Name = update.payload
+        sponsor.Sponsor_Name = dumbEncryption(update.payload)
         session.add(sponsor)
         session.commit()
         session.refresh(sponsor)
     elif update.type.strip().lower() == "email":
-        sponsor.Sponsor_Email = update.payload
+        sponsor.Sponsor_Email = dumbEncryption(update.payload)
         session.add(sponsor)
         session.commit()
         session.refresh(sponsor)
@@ -1454,7 +1511,7 @@ def updateSponsor(sponsor_id:int, update:AdminUpdate, session:Session = Depends(
         session.commit()
         session.refresh(sponsor)
     elif update.type.strip().lower() == "phone number":
-        sponsor.Sponsor_Phone_Num = update.payload
+        sponsor.Sponsor_Phone_Num = dumbEncryption(update.payload)
         session.add(sponsor)
         session.commit()
         session.refresh(sponsor)
@@ -1475,6 +1532,7 @@ def getAllDriversBySponsor(
         driver_list = list(session.exec(select(Driver_User)).all())
         if not driver_list:
             raise HTTPException(status_code=400, detail=f"No Drivers associated with any sponsors")
+        driver_list = decryptList(driver_list)
         return driver_list
     else:
         sponsor_list = session.exec(select(Sponsorship.Driver_User_ID).where(Sponsorship.Sponsor_ID == sponsor_id).distinct()).all()
@@ -1484,6 +1542,7 @@ def getAllDriversBySponsor(
         for i in sponsor_list:
             driver = session.exec(select(Driver_User).where(Driver_User.Registered_Driver == i)).first()
             driver_list.append(driver)
+        driver_list = decryptList(driver_list)
         return driver_list
 
 # The admin api endpoint that returns a sponsor list based on the driver id passed.
@@ -1498,6 +1557,7 @@ def getSponsorList(
         sponsor_list: list = list(session.exec(select(Sponsor)).all())
         if not sponsor_list:
             raise HTTPException(status_code=400, detail="No Sponsors Present")
+        sponsor_list = decryptList(sponsor_list)
         return sponsor_list
     else:
         sponsorship_list = session.exec(select(Sponsorship.Sponsor_ID).where(Sponsorship.Driver_User_ID == driver_id).distinct()).all()
@@ -1509,6 +1569,7 @@ def getSponsorList(
             if not sponsor:
                 raise HTTPException(status_code=400, detail="No Sponsors Present within sponsor table")
             sponsor_list.append(sponsor)
+        sponsor_list = decryptList(sponsor_list)
         return sponsor_list
     
 @app.delete("/sponsor/{sponsor_id}")
@@ -1537,13 +1598,13 @@ def viewProfile(user_id: int, session: Session = Depends(getSession)):
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
+    
     return {
         "userId": user.UserID,
-        "name": user.User_Name,
-        "email": user.User_Email,
-        "phone": user.User_Phone_Num,
-        "role": user.User_Role,
+        "name": dumbDecryption(user.User_Name),
+        "email": dumbDecryption(user.User_Email),
+        "phone": dumbDecryption(user.User_Phone_Num),
+        "role": dumbDecryption(user.User_Role),
         "loginAttempts": user.User_Login_Attempts,
         "lockoutTime": user.User_Lockout_Time,
         "timezone": user.Time_Zone,
@@ -1566,23 +1627,23 @@ def updateProfile(
         raise HTTPException(status_code=404, detail="User not found")
 
     if payload.name:
-        user.User_Name = payload.name
+        user.User_Name = dumbEncryption(payload.name)
 
     if payload.email:
         existing = session.exec(
-            select(User).where(User.User_Email == payload.email)
+            select(User).where(User.User_Email == dumbEncryption(payload.email))
         ).first()
         if existing and existing.UserID != user_id:
             raise HTTPException(status_code=409, detail="Email already in use")
-        user.User_Email = payload.email
+        user.User_Email = dumbEncryption(payload.email)
 
     if payload.phone:
         existing = session.exec(
-            select(User).where(User.User_Phone_Num == payload.phone)
+            select(User).where(User.User_Phone_Num == dumbEncryption(payload.phone))
         ).first()
         if existing and existing.UserID != user_id:
             raise HTTPException(status_code=409, detail="Phone already in use")
-        user.User_Phone_Num = payload.phone
+        user.User_Phone_Num = dumbEncryption(payload.phone)
 
     if payload.timezone:
         user.Time_Zone = payload.timezone
@@ -1617,15 +1678,15 @@ def requestPswChange(user_id: int, session : Session=Depends(getSession)):
     session.commit()
     session.refresh(user)
     
-    if not passwordResetEmail(user.User_Email, verifCode):
+    if not passwordResetEmail(dumbDecryption(user.User_Email), verifCode):
         user.Verification_Code = None
         session.add(user)
         session.commit()
         raise HTTPException(status_code=500, detail="Email failed to send")
 
-    return {"message":f"Change password email sent successfully to: {user.User_Email}"}    
+    return {"message":f"Change password email sent successfully to: {dumbDecryption(user.User_Email)}"}    
 
-
+# TODO: Ask about this funciton with my team
 @app.post("/account/{user_id}/verify_token")
 def verifyToken(user_id: int,tokenAttempt: str, session: Session = Depends(getSession)):
     # TODO: Enforce reset token expiry and one-time-use semantics.
@@ -1693,7 +1754,7 @@ def getAllPasswordLogs(userid: Optional[int] = Query(None), session:Session =Dep
         stmt = stmt.where(PasswordChangeLog.user_id == userid)
     
     logs = session.exec(stmt).all()
-    
+    logs = decryptList(logs)
     return logs
 
     
@@ -1934,7 +1995,7 @@ def getPointStatusReport(driver_id:int, session: Session = Depends(getSession)):
     if not statusReport:
         raise HTTPException(status_code=404, detail="No recent reports found for this driver")
     
-    return statusReport
+    return decryptList(statusReport)
 
 # TODO: This is a note to ask if this covers the transaction history that can be searched through by sponsors. *COMPLETED*
 @app.get("/report/transaction/{driver_id}/date_range")
@@ -1955,7 +2016,7 @@ def getTransactionHistoryByDate(start_date : datetime, end_date : datetime, driv
     if not statusReport:
         raise HTTPException(status_code=404, detail=f"No Transactions between {start_date} and {end_date.replace(hour=end_date.max.hour, minute=end_date.max.minute, second=end_date.max.second)} were found for this driver")
         
-    return statusReport
+    return decryptList(statusReport)
 
 
 
@@ -1994,7 +2055,7 @@ def getSalesByDriverReport(
     if driver_id is not None:
         stmt = stmt.where(Point_Transaction.Driver_User_ID == driver_id)
     if sponsor_name is not None:
-        stmt = stmt.where(func.lower(Point_Transaction.Sponsor_Name) == sponsor_name.lower())
+        stmt = stmt.where(func.lower(Point_Transaction.Sponsor_Name) == dumbEncryption(sponsor_name.lower()))
     if start_date is not None:
         stmt = stmt.where(Point_Transaction.Created_At >= start_date)
     if end_date is not None:
@@ -2005,8 +2066,8 @@ def getSalesByDriverReport(
     return [
         {
             "driver_id": sale.driver_id,
-            "driver_name": sale.driver_name,
-            "sponsor_name": sale.sponsor_name,
+            "driver_name": dumbDecryption(sale.driver_name),
+            "sponsor_name": dumbDecryption(sale.sponsor_name),
             "total_sales": int(sale.total_sales or 0),
             "purchase_count": int(sale.purchase_count or 0),
             "latest_purchase_at": sale.latest_purchase_at,
@@ -2043,7 +2104,7 @@ def getSalesBySponsorReport(
     )
 
     if sponsor_name is not None:
-        stmt = stmt.where(func.lower(Point_Transaction.Sponsor_Name) == sponsor_name.lower())
+        stmt = stmt.where(func.lower(Point_Transaction.Sponsor_Name) == dumbEncryption(sponsor_name).lower())
     if start_date is not None:
         stmt = stmt.where(Point_Transaction.Created_At >= start_date)
     if end_date is not None:
@@ -2053,7 +2114,7 @@ def getSalesBySponsorReport(
 
     return [
         {
-            "sponsor_name": sale.sponsor_name,
+            "sponsor_name": dumbDecryption(sale.sponsor_name),
             "total_sales": int(sale.total_sales or 0),
             "purchase_count": int(sale.purchase_count or 0),
             "driver_count": int(sale.driver_count or 0),
@@ -2073,7 +2134,10 @@ def getSponsorInvoiceReport(
     limit: int = Query(100, ge=1, le=1000),
     session: Session = Depends(getSession),
 ):
-    return _get_sponsor_invoice_rows(session, sponsor_name, start_date, end_date, limit)
+    rows = _get_sponsor_invoice_rows(session, dumbEncryption(sponsor_name), start_date, end_date, limit)
+    for i in rows:
+        i["sponsor_name"] = dumbDecryption(i["sponsor_name"])
+    return rows
 
 
 @app.get("/report/invoices/sponsor/export")
@@ -2084,7 +2148,10 @@ def exportSponsorInvoiceReport(
     limit: int = Query(100, ge=1, le=1000),
     session: Session = Depends(getSession),
 ):
-    rows = _get_sponsor_invoice_rows(session, sponsor_name, start_date, end_date, limit)
+    rows = _get_sponsor_invoice_rows(session, dumbEncryption(sponsor_name), start_date, end_date, limit)
+
+    for i in rows:
+        i["sponsor_name"] = dumbDecryption(i["sponsor_name"])
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -2167,7 +2234,7 @@ def changePoints(payload:NewPointChange, session: Session=Depends(getSession)):
     newTransaction = Point_Transaction(
         Driver_User_ID= payload.driver_id,
         Driver_Name= driver.Driver_Name,
-        Sponsor_Name= sponsor.Sponsor_Name if sponsor else "Unassigned",
+        Sponsor_Name= sponsor.Sponsor_Name if sponsor else dumbEncryption("Unassigned"),
         Points_Change= str(payload.points_change),
         Reason_For_Change= payload.reason,
         Created_At= datetime.now(timezone.utc),
@@ -2217,7 +2284,7 @@ def deleteTransactionLog(transaction_id: int, session: Session=Depends(getSessio
 @app.post("/market")
 def createMarket(payload: MarketCreate, sponsor_email : Optional[str] = Query(None), session: Session = Depends(getSession)):
     if sponsor_email:
-        stmt = session.exec(select(Sponsor.Sponsor_ID).where(Sponsor.Sponsor_Email == sponsor_email)).first()
+        stmt = session.exec(select(Sponsor.Sponsor_ID).where(Sponsor.Sponsor_Email == dumbEncryption(sponsor_email))).first()
 
         if not stmt:
             raise HTTPException(status_code=404, detail="Sponsor does not exist")
@@ -2543,6 +2610,12 @@ def getDriverCSV(driver_id: Optional[int] = Query(None),
     
     
     reports = session.exec(stmt).all()
+
+    r = decryptList(reports)
+    i = 0
+    for report in reports:
+        report.Driver_Name = r[i]["Driver_Name"]
+        report.Sponsor_Name = r[i]["Sponsor_Name"]
     
     buffer =io.StringIO()
     
@@ -2606,8 +2679,8 @@ def getPasswordChangeCSV(driver_id: Optional[int] = Query(None), session: Sessio
             [
                 log.Log_ID,
                 log.user_id,
-                log.User_Type,
-                log.UserName,
+                dumbDecryption(log.User_Type),
+                dumbDecryption(log.UserName),
                 log.ChangedAt  
             ]
         )
@@ -2644,11 +2717,11 @@ def getDecisionReportsCSV(driver_id: Optional[int]= Query(None), session: Sessio
             [
                log.DecisionID,
                log.Driver_ID,
-               log.Driver_Name,
+               dumbDecryption(log.Driver_Name),
                log.Decision,
                log.Reason,
-               log.Sponsor,
-               log.AuthorizedBy,
+               dumbDecryption(log.Sponsor),
+               dumbDecryption(log.AuthorizedBy),
                log.Decision_Made_At 
             ]
         )
